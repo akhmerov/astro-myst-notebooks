@@ -1,0 +1,4 @@
+{
+  "protocol": 1,
+  "packages": ["nbclient", "nbformat", "ipykernel"]
+}

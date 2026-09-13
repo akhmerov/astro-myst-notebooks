@@ -1,0 +1,83 @@
+{
+  "name": "astro-myst-notebooks",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "MyST documents, Jupyter execution, source maps, and browser notebooks for Astro and Starlight",
+  "license": "BSD-2-Clause",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/notebooks/index.d.ts",
+      "import": "./dist/notebooks/index.js"
+    },
+    "./loader": {
+      "types": "./dist/source-loader.d.ts",
+      "import": "./dist/source-loader.js"
+    },
+    "./pydocs": {
+      "types": "./dist/pydocs-inventory.d.ts",
+      "import": "./dist/pydocs-inventory.js"
+    },
+    "./types": {
+      "types": "./dist/notebooks/types.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc && node scripts/copy-assets.mjs",
+    "check": "tsc --noEmit",
+    "test": "npm run build && node --test tests/*.test.mjs",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "@astrojs/markdown-remark": "^7.3.1",
+    "@lumino/widgets": "^2.9.0",
+    "citation-js-utils": "^1.2.8",
+    "hast-util-from-html": "^2.0.3",
+    "hast-util-to-html": "^9.0.5",
+    "intersphinx": "^1.1.0",
+    "katex": "^0.18.7",
+    "mdast-util-from-markdown": "^2.0.3",
+    "mdast-util-gfm": "^3.1.0",
+    "mdast-util-math": "^3.0.0",
+    "micromark-extension-gfm": "^3.0.0",
+    "micromark-extension-math": "^3.1.0",
+    "myst-parser": "^1.7.3",
+    "myst-roles": "^1.7.3",
+    "myst-to-html": "^1.7.3",
+    "myst-transforms": "^1.3.50",
+    "plotly.js-dist-min": "^4.1.0",
+    "rehype-katex": "^7.0.1",
+    "remark-math": "^6.0.0",
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.1.2",
+    "thebe": "^0.9.3",
+    "thebe-core": "^0.5.0",
+    "thebe-lite": "^0.5.0",
+    "unified": "^11.0.5",
+    "unist-util-visit": "^5.1.0",
+    "vfile": "^6.0.3",
+    "vite-plugin-static-copy": "^4.1.1",
+    "@jupyterlite/pyodide-kernel": "0.4.7"
+  },
+  "peerDependencies": {
+    "astro": "^7.3.2",
+    "starlight-pydocs": "^0.2.1"
+  },
+  "peerDependenciesMeta": {
+    "starlight-pydocs": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "astro": "^7.3.2",
+    "starlight-pydocs": "^0.2.1",
+    "@types/node": "^24.0.0",
+    "@types/plotly.js-dist-min": "^2.3.4",
+    "typescript": "^6.0.3"
+  }
+}

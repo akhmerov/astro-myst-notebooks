@@ -1,0 +1,74 @@
+jupyter-notebook { display: block; }
+.live-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  border: 1px solid var(--sl-color-hairline-light);
+  border-radius: 0.5rem;
+}
+.live-controls button, .jupyter-cell .thebe-button {
+  border: 1px solid var(--sl-color-accent);
+  border-radius: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  background: var(--sl-color-accent-low);
+  color: var(--sl-color-accent-high);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875rem;
+}
+.live-controls button:disabled { opacity: 0.6; cursor: progress; }
+.live-controls [role='status'] { flex-basis: 100%; font-size: 0.875rem; }
+.jupyter-cell .thebe-input { border: 1px solid var(--sl-color-hairline-light); }
+.jupyter-cell .thebe-controls { margin-block: 0.5rem; }
+.jupyter-cell .CodeMirror { height: auto; font-size: 0.85rem; line-height: 1.6; }
+.jupyter-cell .jp-OutputArea-prompt { display: none; }
+.jupyter-cell .jp-OutputArea-child { width: 100%; }
+.jupyter-cell [hidden], .live-controls [hidden] { display: none !important; }
+/* Starlight's prose spacing must not turn editor lines into paragraphs. */
+.jupyter-cell .CodeMirror :is(pre, div, span) { margin-block: 0; }
+.jupyter-cell .CodeMirror pre { padding-block: 0; border: 0; border-radius: 0; background: none; }
+.jupyter-cell .CodeMirror { background: var(--sl-color-bg); color: var(--sl-color-text); }
+.jupyter-cell .CodeMirror-gutters { background: var(--sl-color-bg-sidebar); border-color: var(--sl-color-hairline-light); }
+.jupyter-cell .CodeMirror-cursor { border-left-color: var(--sl-color-text); }
+:root[data-theme='dark'] .jupyter-cell .cm-keyword { color: #c5a3ff; }
+:root[data-theme='dark'] .jupyter-cell .cm-variable { color: #ededed; }
+:root[data-theme='dark'] .jupyter-cell .cm-string { color: #a8d6a4; }
+:root[data-theme='dark'] .jupyter-cell .cm-number { color: #d9bd83; }
+:root[data-theme='dark'] .jupyter-cell .cm-builtin { color: #91d6df; }
+.jupyter-cell .jp-OutputPrompt { display: none; }
+
+.jupyter-output {
+  margin-block: 0.8rem 1.6rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--sl-color-hairline-light);
+  border-left: 3px solid var(--sl-color-accent);
+  border-radius: 0 0.5rem 0.5rem 0;
+  overflow-x: auto;
+  font-size: 0.92rem;
+}
+.jupyter-output pre { margin: 0; padding: 0; background: transparent; border: 0; }
+.jupyter-output img { display: block; margin: auto; max-width: 100%; height: auto; }
+.jupyter-output:has(svg), .jupyter-output:has(img), .jupyter-output:has(.jupyter-plotly) {
+  background: white;
+  color: #25303b;
+}
+.jupyter-output svg { max-width: 100%; height: auto; }
+.jupyter-output .js-plotly-plot svg { max-width: none; height: 100%; }
+.jupyter-plotly { min-height: 420px; width: 100%; }
+.jupyter-input { border: 1px solid var(--sl-color-hairline-light); border-radius: 0.5rem; padding: 0.75rem 1rem; }
+.jupyter-input summary { cursor: pointer; color: var(--sl-color-accent-high); font-size: 0.875rem; }
+.jupyter-output table { width: 100%; font-variant-numeric: tabular-nums; }
+.katex-display { overflow-x: auto; overflow-y: hidden; padding-block: 0.35rem; }
+
+@media (max-width: 50rem) { .jupyter-output { padding: 0.75rem; } }
+.jupyter-output table.dataframe { border: 0; border-collapse: collapse; }
+.jupyter-output table.dataframe :is(th, td) {
+  border: 0;
+  border-bottom: 1px solid var(--sl-color-hairline-light);
+  padding: 0.55rem 0.7rem;
+  white-space: nowrap;
+  text-align: right;
+}
