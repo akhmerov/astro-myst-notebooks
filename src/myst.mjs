@@ -1,4 +1,5 @@
 import { mystParse } from 'myst-parser';
+import { autodocDirective } from './autodoc.mjs';
 import { mystToHast } from 'myst-to-html';
 import { visit } from 'unist-util-visit';
 
@@ -11,7 +12,7 @@ export const remarkMyst = function (options = {}) {
   // MyST exports a unified v10 plugin; Astro uses unified v11's `parser` slot.
   // Parsing, including directive options and cell tags, stays in myst-parser.
   this.parser = (source, file) => {
-    const tree = mystParse(source, { vfile: file, roles: [autolinkRole] });
+    const tree = mystParse(source, { vfile: file, roles: [autolinkRole], directives: [autodocDirective] });
     const errors = file.messages.filter(message => message.fatal === true);
     if (errors.length) file.fail(errors.map(message => message.reason).join('\n'));
     tree.data = { ...tree.data, source };
@@ -23,7 +24,7 @@ export const remarkMyst = function (options = {}) {
     const resolved = await resolveDocument(tree.data?.source ?? String(file.value), file, options);
     tree.children = resolved.children;
     visit(tree, 'code', node => {
-      if (node.lang === 'ipython3' || node.lang === 'python3') node.lang = 'python';
+      if (node.lang === 'ipython3' || node.lang === 'python3' || node.lang === 'pycon') node.lang = 'python';
     });
     // Starlight renders the document title separately from its body.
     if (tree.children[0]?.type === 'heading' && tree.children[0].depth === 1) tree.children.shift();

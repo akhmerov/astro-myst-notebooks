@@ -1,0 +1,7 @@
+---
+import { DocstringSections } from 'starlight-pydocs/components';
+import { assertRenderedDocstrings } from './autodoc.mjs';
+const { doc, scope } = Astro.props;
+assertRenderedDocstrings(doc, scope.rendered);
+---
+<DocstringSections {...Astro.props} />

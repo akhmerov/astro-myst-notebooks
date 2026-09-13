@@ -33,6 +33,7 @@ export function sourceLoader({ base, pattern, sources = {}, documents, generateI
       });
       const routes = [...context.store.values()].filter(entry => entry.filePath?.endsWith('.md')).map(entry => ({
         path: resolve(fileURLToPath(context.config.root), entry.filePath!),
+        name: entry.id, title: String(entry.data.title),
         url: `${context.config.base.replace(/\/$/, '')}/${entry.id === 'index' ? '' : entry.id + '/'}`,
       }));
       await mkdir(new URL('./', documents), { recursive: true });

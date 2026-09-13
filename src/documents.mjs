@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mystParse } from 'myst-parser';
+import { autodocDirective } from './autodoc.mjs';
 import { VFile } from 'vfile';
 import { visit } from 'unist-util-visit';
 import {
@@ -21,7 +22,7 @@ function diagnostics(file) {
 
 export function parseDocument(source, path, root, fullSource = source, keepTitleNode = false) {
   const file = new VFile({ path, value: source });
-  const tree = mystParse(source, { vfile: file, roles: [autolinkRole], extensions: { smartquotes: false } });
+  const tree = mystParse(source, { vfile: file, roles: [autolinkRole], directives: [autodocDirective], extensions: { smartquotes: false } });
   diagnostics(file);
   attachOrigins(tree, source, path, root, fullSource);
   const { frontmatter, identifiers } = getFrontmatter(file, tree, { keepTitleNode });
@@ -87,6 +88,9 @@ async function prepare(document, root) {
   document.state = new ReferenceState(file.path, { vfile: file, frontmatter: {
     ...frontmatter, numbering: { heading_1: false, heading_2: false, heading_3: false, ...frontmatter.numbering },
   }, url: document.url, identifiers: document.identifiers });
+  // Match notebook/Sphinx convention: number labelled equations. Explicit
+  // MyST :enumerated: choices still take precedence.
+  visit(tree, 'math', node => { node.enumerated ??= Boolean(node.identifier); });
   enumerateTargetsTransform(tree, { state: document.state });
 }
 
@@ -157,6 +161,20 @@ export async function resolveDocument(source, file, { root = process.cwd(), docu
   visit(page.tree, node => {
     if (!supported.has(node.type)) page.file.fail(`MyST construct is not supported by this renderer: ${node.type}`, node.position);
   });
+  // Anonymous fragments (such as Griffe docstrings) have no text-file offsets.
+  // Do not invent a document.md source map for them.
+  if (!file.path) visit(page.tree, node => { if (node.data) delete node.data.origin; });
   diagnostics(page.file);
   return page.tree;
+}
+
+/** Named document targets for an exported Sphinx inventory. */
+export async function documentTargets(source, path, root) {
+  const document = parseDocument(source, path, root);
+  await prepare(document, root);
+  return document.state.getAllTargets().filter(target => target.node.label && !target.node.implicit).map(target => ({
+    name: target.node.label,
+    id: target.node.html_id ?? target.node.identifier,
+    title: target.node.children?.map(child => child.value ?? '').join('') || target.node.label,
+  }));
 }

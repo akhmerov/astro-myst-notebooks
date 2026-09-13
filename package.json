@@ -1,6 +1,6 @@
 {
   "name": "astro-myst-notebooks",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "description": "MyST documents, Jupyter execution, source maps, and browser notebooks for Astro and Starlight",
   "license": "BSD-2-Clause",
@@ -25,7 +25,15 @@
     },
     "./types": {
       "types": "./dist/notebooks/types.d.ts"
-    }
+    },
+    "./AutodocContent.astro": "./dist/AutodocContent.astro",
+    "./griffe": "./dist/griffe_myst.py",
+    "./CheckedDocstrings.astro": "./dist/CheckedDocstrings.astro",
+    "./inventory": {
+      "types": "./dist/inventory.d.ts",
+      "import": "./dist/inventory.js"
+    },
+    "./autodoc": "./dist/autodoc.mjs"
   },
   "scripts": {
     "build": "tsc && node scripts/copy-assets.mjs",
@@ -76,10 +84,14 @@
   },
   "peerDependencies": {
     "astro": "^7.3.2",
-    "starlight-pydocs": "^0.2.1"
+    "starlight-pydocs": "^0.2.1",
+    "@astrojs/starlight": "^0.42.0"
   },
   "peerDependenciesMeta": {
     "starlight-pydocs": {
+      "optional": true
+    },
+    "@astrojs/starlight": {
       "optional": true
     }
   },

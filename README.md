@@ -15,7 +15,7 @@ pixi run pack
 
 Pixi locks Node, Python, and the Jupyter executor environment. npm locks the
 JavaScript dependency graph. `npm pack` compiles TypeScript, includes the Python
-adapter and runtime assets, and produces `astro-myst-notebooks-0.2.0.tgz`.
+adapter and runtime assets, and produces `astro-myst-notebooks-0.2.1.tgz`.
 Tests import that compiled output and execute real Jupyter kernels.
 
 The npm package is the distribution unit. There is no Python distribution:
@@ -174,3 +174,26 @@ reinstall the file dependency to update the lockfile, and run those checks.
 Originally developed in Pymablock. Distributed under its BSD-2-Clause license;
 see LICENSE. Source files and runtime assets ship in `dist/`, with TypeScript
 declarations for the public integration and loader APIs.
+
+
+### NumPy/RST API docstrings and inline MyST API blocks
+
+`griffe_myst.py` is an optional Griffe extension for NumPy-style docstrings
+containing RST. It uses `rst-to-myst` and its existing Docutils/Markdown token
+pipeline; consumers install `griffe` and `rst-to-myst` in their Pixi environment.
+`class_only`, `exclude`, and `documents` configure Sphinx class-doc conventions,
+excluded modules, and doc-role routes. Pydocs resolves generated API links.
+
+`AutodocContent.astro` is a Starlight MarkdownContent override that renders
+MyST `{autodoc}` blocks through Pydocs' public components. The `summary-only`
+option retains module introductions without repeating members. It accepts an
+optional mapping of old anchors to current anchors (`@top` means page content
+start). HTML parsing preserves the surrounding text and source-map markers.
+Configure Pydocs' `DocstringSections` override to `CheckedDocstrings.astro` to
+reject silently dropped docstring prose or unknown section types.
+
+Labelled equations are numbered by default; explicit MyST enumeration choices
+are respected. Anonymous renderer fragments do not receive invented file
+origins. `exportInventory` from `/inventory` combines the typed API inventory
+with document targets after the build. Pass Astro's deployment `base` so public
+inventory URLs are relative to that site, including at a nested prefix.

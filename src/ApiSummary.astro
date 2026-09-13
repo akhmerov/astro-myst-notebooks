@@ -1,0 +1,12 @@
+---
+import { DocstringSections } from 'starlight-pydocs/components';
+import { createRenderScope } from 'starlight-pydocs/render';
+import context from 'virtual:starlight-pydocs/context';
+const { name } = Astro.props;
+const packages = context.packages.filter(pkg => name === pkg.name || name.startsWith(pkg.name + '.'));
+if (packages.length !== 1) throw new Error(`autodoc summary needs one package for ${name}`);
+const scope = await createRenderScope(context, packages[0].base);
+const doc = scope.model.objectsByPath.get(name);
+if (!doc) throw new Error(`Unknown autodoc summary: ${name}`);
+---
+<div id={`module-${name}`}><DocstringSections doc={doc} scope={scope} /></div>

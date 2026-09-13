@@ -16,10 +16,14 @@ export function pydocsInventory(options: PydocsLoaderOptions, destination: URL):
       const inventory = new Inventory({ project: options.name });
       const base = context.config.base.replace(/\/$/, '');
       const symbols = [...context.store.values()].map(entry => entry.data as PydocsEntry);
+      const byPath = new Map(symbols.map(symbol => [symbol.path, symbol]));
       const documented = new Set(symbols.map(symbol => symbol.path));
       const aliases = new Set<string>();
       for (const symbol of symbols) {
-        const type = symbol.kind === 'function' ? 'function' : symbol.kind === 'module' ? 'module' : symbol.kind === 'class' ? 'class' : 'attribute';
+        const parent = byPath.get(symbol.path.slice(0, symbol.path.lastIndexOf('.')));
+        const type = symbol.kind === 'function' ? (parent?.kind === 'class' ? 'method' : 'function')
+          : symbol.kind === 'module' ? 'module' : symbol.kind === 'class' ? 'class'
+          : symbol.labels.includes('property') ? 'property' : parent?.kind === 'module' ? 'data' : 'attribute';
         const slash = context.config.trailingSlash === 'never' ? '' : '/';
         const target = {
           type: `py:${type}`, name: symbol.path,

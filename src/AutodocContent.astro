@@ -1,0 +1,14 @@
+---
+import MarkdownContent from '@astrojs/starlight/components/MarkdownContent.astro';
+import ApiSummary from './ApiSummary.astro';
+import { Autodoc } from 'starlight-pydocs/components';
+import 'starlight-pydocs/styles';
+import { autodocParts } from './autodoc.mjs';
+
+const parts = autodocParts(await Astro.slots.render('default'), Astro.props.aliases);
+---
+<MarkdownContent>
+  {parts.map(part => part.name
+    ? part.summaryOnly ? <ApiSummary name={part.name} /> : <Autodoc name={part.name} headingLevel={part.headingLevel} />
+    : <Fragment set:html={part.html} />)}
+</MarkdownContent>
