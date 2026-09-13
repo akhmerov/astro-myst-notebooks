@@ -30,11 +30,13 @@ export function parseDocument(source, path, root, fullSource = source, keepTitle
 
 async function prepare(document, root) {
   const { tree, file, frontmatter } = document;
+  document.sources = new Set([file.path]);
   await includeDirectiveTransform(tree, frontmatter, file, {
     sourceFile: file.path, sourcePath: root,
     resolveFile: (name, from) => resolve(dirname(from), name),
     loadFile: name => readFile(name, 'utf8'),
     parseContent: async (name, content) => {
+      document.sources.add(name);
       const included = parseDocument(content, name, root, await readFile(name, 'utf8'), true);
       return { mdast: included.tree, frontmatter: included.frontmatter };
     },
@@ -112,7 +114,13 @@ export async function resolveDocument(source, file, { root = process.cwd(), docu
     // Translate file links using the collection's actual routes before resolving.
     const [name, label] = node.url.split('#');
     if (!name.endsWith('.md') || name.includes('://')) return;
-    const destination = pages.find(other => other.file.path === resolve(dirname(node.data?.origin?.file ? resolve(root, node.data.origin.file) : path), name));
+    const origin = node.data?.origin?.file ? resolve(root, node.data.origin.file) : path;
+    const target = resolve(dirname(origin), name);
+    // Included project files may link to another included file, or to a route
+    // relative to the containing document (the Sphinx include convention).
+    const candidates = pages.filter(other => other.sources.has(target));
+    if (candidates.length > 1) page.file.fail(`Ambiguous included document: ${name}`, node.position);
+    const destination = candidates[0] ?? pages.find(other => other.file.path === resolve(dirname(path), name));
     if (!destination) page.file.fail(`Unknown document: ${name}`, node.position);
     if (!label) { node.url = destination.url; if (!node.children?.length) node.children = [{ type: 'text', value: destination.frontmatter.title ?? name }]; return; }
     node.type = 'crossReference'; node.identifier = label;

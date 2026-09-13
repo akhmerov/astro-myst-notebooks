@@ -124,7 +124,7 @@ export function remarkJupyter({ interactive = false, ...options } = {}) {
         ],
       });
     }
-    if (interactive) {
+    if (interactive && metadata.thebe !== false) {
       const element = (type, tag, properties, children) => ({
         type, data: { hName: tag, hProperties: properties }, children,
       });

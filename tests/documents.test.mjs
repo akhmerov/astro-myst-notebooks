@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { visit } from 'unist-util-visit';
@@ -13,7 +13,7 @@ async function fixture(fn) {
   const root = await mkdtemp(join(tmpdir(), 'myst-documents-'));
   try { await fn(root); } finally { await rm(root, { recursive: true }); }
 }
-const nodes = (tree, type) => { const found = []; visit(tree, type, node => found.push(node)); return found; };
+const nodes = (tree, type) => { const found = []; visit(tree, type, node => { found.push(node); }); return found; };
 
 test('MyST includes, citations, numbered targets and cross-page routes resolve through existing transforms', () => fixture(async root => {
   const main = '---\ntitle: Main\nbibliography: refs.bib\n---\n\n```{include} part.md\n```\n\nSee {eq}`energy` and {numref}`icon` and {cite:p}`example`.\n\n[](./other.md#other-equation)';
@@ -87,3 +87,46 @@ test('Jupyter checks Pixi requirements and returns structured failures with cell
     return true;
   });
 }));
+
+
+test('links in included text use source files and containing-page routes', () => fixture(async root => {
+  await mkdir(join(root, 'docs'));
+  const main = '```{include} ../CONTRIBUTING.md\n```';
+  await writeFile(join(root, 'docs', 'developer.md'), main);
+  await writeFile(join(root, 'CONTRIBUTING.md'), '[Changes](CHANGELOG.md) and [Tutorial](tutorial.md)');
+  await writeFile(join(root, 'CHANGELOG.md'), '# Changelog');
+  await writeFile(join(root, 'docs', 'changes.md'), '```{include} ../CHANGELOG.md\n```');
+  await writeFile(join(root, 'docs', 'tutorial.md'), '# Tutorial');
+  const documents = join(root, 'routes.json');
+  const routes = ['developer', 'changes', 'tutorial'].map(name => ({path:join(root,'docs',name+'.md'),url:`/${name}/`}));
+  await writeFile(documents, JSON.stringify(routes));
+  const tree = await resolveDocument(main, {path:routes[0].path}, {root, documents});
+  assert.deepEqual([...new Set(nodes(tree, 'link').map(node=>node.url))], ['/changes/', '/tutorial/']);
+  await writeFile(join(root, 'docs', 'other.md'), '```{include} ../CHANGELOG.md\n```');
+  await writeFile(documents, JSON.stringify([...routes, {path:join(root,'docs','other.md'), url:'/other/'}]));
+  await assert.rejects(resolveDocument(main, {path:routes[0].path}, {root, documents}), /Ambiguous/);
+}));
+
+
+test('equation anchors survive KaTeX and deployment bases preserve local links', async () => {
+  const { unified } = await import('unified');
+  const { mystRehype, rehypeDocumentBase, rehypeMathErrors } = await import('../dist/myst.mjs');
+  const { default: remarkRehype } = await import('remark-rehype');
+  const { default: rehypeKatex } = await import('rehype-katex');
+  const tree = {type:'root',children:[
+    {type:'math', value:'E=mc^2', identifier:'Energy:law', html_id:'energy', enumerator:'1'},
+    {type:'link', url:'/tutorial/',children:[{type:'text',value:'Tutorial'}]},
+    {type:'image',url:'/figure.svg',alt:'Figure'},
+    {type:'link',url:'/en/latest/api/',children:[]},
+  ]};
+  const output = await unified().use(remarkRehype, mystRehype).use(rehypeKatex)
+    .use(rehypeDocumentBase,{base:'/en/latest/'}).run(tree);
+  const elements = nodes(output,'element');
+  assert.ok(elements.some(node=>node.properties?.id==='energy'));
+  assert.ok(elements.some(node=>node.properties?.className?.includes('katex')));
+  assert.ok(elements.some(node=>node.properties?.href==='/en/latest/tutorial/'));
+  assert.ok(elements.some(node=>node.properties?.src==='/en/latest/figure.svg'));
+  assert.ok(elements.some(node=>node.properties?.href==='/en/latest/api/'));
+  await assert.rejects(unified().use(remarkRehype,mystRehype).use(rehypeKatex).use(rehypeMathErrors)
+    .run({type:'root',children:[{type:'math',value:'\\unsupportedmath'}]}), /Undefined control sequence/);
+});

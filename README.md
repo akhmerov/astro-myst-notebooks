@@ -15,7 +15,7 @@ pixi run pack
 
 Pixi locks Node, Python, and the Jupyter executor environment. npm locks the
 JavaScript dependency graph. `npm pack` compiles TypeScript, includes the Python
-adapter and runtime assets, and produces `astro-myst-notebooks-0.1.0.tgz`.
+adapter and runtime assets, and produces `astro-myst-notebooks-0.2.0.tgz`.
 Tests import that compiled output and execute real Jupyter kernels.
 
 The npm package is the distribution unit. There is no Python distribution:
@@ -112,20 +112,39 @@ inventories are validated and cached; `refresh: true` explicitly refreshes them.
 
 ## Browser execution
 
-Thebe and Thebe Lite start a JupyterLite/Pyodide kernel on activation. Runtime
-assets resolve from installed dependencies and are copied by Vite. No server
-backend is required. First activation needs internet access for Python and its
-packages. Optional `interactive.wheel` accepts `{ project: URL, command: string[] }`;
-the integration appends `-d OUTPUT_DIRECTORY`, requires exactly one wheel, and
-serves it to Pyodide. `setup`, `packages`, `startupTimeout`, and `kernelName`
-configure the browser environment. `interactive: false` disables live execution.
+Thebe supplies the editors, controls, and Jupyter MIME rendering. Browser
+execution has two providers:
+
+- Without `xeus`, Thebe Lite starts its bundled Pyodide kernel. Configure its
+  `packages` and optional wheel; first activation downloads Python packages.
+- With `xeus: { environment: new URL('./environment.yml', import.meta.url) }`,
+  JupyterLite Xeus builds an Emscripten-forge environment and the site hosts it.
+  Use this for compiled packages available through Emscripten-forge, such as
+  Kwant. Install `jupyterlite-core` 0.8, `jupyterlite-xeus` 5.1, and `micromamba`
+  in the build environment. Configure dependencies in the environment YAML,
+  not `interactive.packages`. The optional `xeus.command` selects the JupyterLite
+  build command, defaulting to `['jupyter', 'lite']`.
+
+Optional `interactive.wheel` accepts `{ project: URL, command: string[] }`.
+The integration appends `-d OUTPUT_DIRECTORY` and requires exactly one wheel.
+Pyodide installs it with micropip. Xeus mounts it at `/opt/wheels/` and adds it
+to Python's import path; this supports pure-Python wheels. Compiled libraries
+belong in the Emscripten environment. `setup`, `startupTimeout`, and `kernelName`
+configure startup; `interactive: false` disables live execution.
+
+The Xeus provider uses JupyterLite's public service plugins and Thebe's provider
+contract. Its small kernel subclass loads the upstream classic workers intact
+and respects the disabled JupyterLab drive on standalone documentation pages.
+Vite copies the workers, their decompressor, and the built environment without
+rewriting worker internals. The native Jupyter executor remains unchanged.
 
 Run all preserves source order; reset terminates the kernel worker, including
 an infinite loop, and preserves edited cells. Static and live output use one
 MIME selection policy for text, HTML, images, LaTeX, and Plotly. Notebook output
 is trusted content. Widgets and arbitrary JavaScript MIME bundles are unsupported.
-Pyodide packages are separate from native Pixi packages and are not yet fully
-locked. Thebe Lite 0.5 also needs a documented terminal-manager disposal guard.
+Browser dependencies are separate from native Pixi dependencies. Consumers own
+the browser specification; neither provider currently enforces a complete
+transitive browser lockfile. Xeus dependencies are bundled at build time. Thebe Lite 0.5 also needs a documented terminal-manager disposal guard.
 
 ## MyST and source maps
 

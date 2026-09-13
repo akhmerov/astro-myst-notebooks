@@ -1,4 +1,5 @@
 export interface BrowserOptions {
+  xeus?: { wheelPath?: string };
   assetBase: string;
   packages: string[];
   wheelUrl?: string;
@@ -7,6 +8,7 @@ export interface BrowserOptions {
   startupTimeout: number;
 }
 export interface InteractiveOptions {
+  xeus?: { environment: URL; command?: string[] };
   packages?: string[];
   setup?: string;
   kernelName?: string;

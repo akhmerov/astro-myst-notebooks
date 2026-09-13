@@ -15,15 +15,22 @@ export function pydocsInventory(options: PydocsLoaderOptions, destination: URL):
       await loader.load(context);
       const inventory = new Inventory({ project: options.name });
       const base = context.config.base.replace(/\/$/, '');
-      for (const entry of context.store.values()) {
-        const symbol = entry.data as PydocsEntry;
+      const symbols = [...context.store.values()].map(entry => entry.data as PydocsEntry);
+      const documented = new Set(symbols.map(symbol => symbol.path));
+      const aliases = new Set<string>();
+      for (const symbol of symbols) {
         const type = symbol.kind === 'function' ? 'function' : symbol.kind === 'module' ? 'module' : symbol.kind === 'class' ? 'class' : 'attribute';
         const slash = context.config.trailingSlash === 'never' ? '' : '/';
-        inventory.setEntry({
+        const target = {
           type: `py:${type}`, name: symbol.path,
           location: `${base}/${symbol.page}${slash}${symbol.anchor ? `#${symbol.anchor}` : ''}`,
           display: symbol.path,
-        });
+        };
+        inventory.setEntry(target);
+        if (!documented.has(symbol.canonicalPath) && !aliases.has(symbol.canonicalPath)) {
+          inventory.setEntry({ ...target, name: symbol.canonicalPath });
+          aliases.add(symbol.canonicalPath);
+        }
       }
       await mkdir(new URL('./', destination), { recursive: true });
       const temporary = fileURLToPath(destination) + '.tmp';

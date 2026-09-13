@@ -51,12 +51,37 @@ export const mystRehype = {
       inlineCode: (h, node) => h(node, 'code', [sourceText(h, node)]),
       captionNumber: (h, node) => h(node, 'span', { className: ['caption-number'] }, [{ type: 'text', value: node.children?.map(child => child.value ?? '').join('') ?? node.enumerator ?? '' }]),
       // Use standard HAST className arrays so rehype-katex can render the math.
-      math: (h, node) => h(node, 'pre', [h(node, 'code', {
-        className: ['language-math', 'math-display'], id: node.identifier,
-      }, [{ type: 'text', value: node.enumerator ? `${node.value}\\tag{${node.enumerator}}` : node.value }])]),
+      math: (h, node) => h(node, 'div', { id: node.html_id ?? node.identifier }, [h(node, 'pre', [h(node, 'code', {
+        className: ['language-math', 'math-display'],
+      }, [{ type: 'text', value: node.enumerator ? `${node.value}\\tag{${node.enumerator}}` : node.value }])])]),
       inlineMath: (h, node) => h(node, 'span', { className: ['math-inline'] }, [
         { type: 'text', value: node.value },
       ]),
     },
   })(tree) },
 };
+
+
+/** Apply Astro's deployment base to authored root-relative links and assets. */
+export function rehypeDocumentBase({ base = '/' } = {}) {
+  const prefix = base.replace(/\/$/, '');
+  return tree => {
+    if (!prefix) return;
+    visit(tree, 'element', node => {
+      for (const key of ['href', 'src']) {
+        const value = node.properties?.[key];
+        if (typeof value === 'string' && value.startsWith('/') && !value.startsWith('//') &&
+            value !== prefix && !value.startsWith(prefix + '/')) node.properties[key] = prefix + value;
+      }
+    });
+  };
+}
+
+
+/** KaTeX reports invalid formulas as messages; documentation builds must fail. */
+export function rehypeMathErrors() {
+  return (_tree, file) => {
+    const errors = file.messages.filter(message => message.source === 'rehype-katex');
+    if (errors.length) file.fail(errors.map(message => message.cause?.message ?? message.reason).join('\n'));
+  };
+}

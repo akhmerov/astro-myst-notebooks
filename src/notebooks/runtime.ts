@@ -3,6 +3,7 @@ import type { ThebeNotebook, ThebeServer, ThebeSession, ThebeEventCb } from 'the
 import type { BrowserOptions } from './types.js';
 
 let runtime: Promise<ThebeGlobal> | undefined;
+let disposeXeus: typeof import('./xeus-server.js').disposeXeusServer | undefined;
 
 function script(src: string, timeout: number) {
   return new Promise<void>((resolve, reject) => {
@@ -27,7 +28,7 @@ export function loadRuntime(options: BrowserOptions): Promise<ThebeGlobal> {
       config.id = 'jupyter-config-data';
       config.type = 'application/json';
       config.textContent = JSON.stringify({
-        baseUrl: import.meta.env.BASE_URL, appVersion: 'astro-myst-notebooks', enableServiceWorkerCache: false,
+        baseUrl: options.xeus ? options.assetBase + '/' : import.meta.env.BASE_URL, appVersion: 'astro-myst-notebooks', enableServiceWorkerCache: false,
       });
       document.head.append(config);
     }
@@ -38,7 +39,16 @@ export function loadRuntime(options: BrowserOptions): Promise<ThebeGlobal> {
       css.href = `${options.assetBase}/thebe.css`;
       document.head.append(css);
     }
-    await script(`${options.assetBase}/thebe-lite.min.js`, options.startupTimeout);
+    if (options.xeus) {
+      const provider = await import('./xeus-server.js');
+      disposeXeus = provider.disposeXeusServer;
+      window.thebeLite = {
+        version: 'xeus-5.1.0',
+        startJupyterLiteServer: () => provider.startXeusServer(options.assetBase),
+      };
+    } else {
+      await script(`${options.assetBase}/thebe-lite.min.js`, options.startupTimeout);
+    }
     await script(`${options.assetBase}/index.js`, options.startupTimeout);
     return window.thebe;
   })().catch(error => { runtime = undefined; throw error; });
@@ -56,6 +66,8 @@ function disposeServer(server: ThebeServer) {
     if (!(error instanceof TypeError) || !services?.isDisposed ||
         !services.sessions.isDisposed || services.terminals.isAvailable()) throw error;
     server.dispose();
+  } finally {
+    if (server.serviceManager) disposeXeus?.(server.serviceManager);
   }
 }
 
@@ -129,7 +141,9 @@ export class NotebookSession {
     const packages = [...this.options.packages];
     if (this.options.wheelUrl) packages.unshift(new URL(this.options.wheelUrl, location.href).href);
     const code = [
-      ...(packages.length ? ['import micropip', `await micropip.install(${JSON.stringify(packages)})`] : []),
+      ...(this.options.xeus
+        ? (this.options.xeus.wheelPath ? ['import sys', `sys.path.insert(0, ${JSON.stringify(this.options.xeus.wheelPath)})`] : [])
+        : (packages.length ? ['import micropip', `await micropip.install(${JSON.stringify(packages)})`] : [])),
       this.options.setup,
     ].filter(Boolean).join('\n');
     if (!code) return;
