@@ -4,6 +4,7 @@ import type { Loader } from 'astro/loaders';
 import { Inventory } from 'intersphinx';
 import { mkdir, rename } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { pageUrl } from './paths.js';
 
 /** Publish build-time references from Pydocs' public content loader/model. */
 export function pydocsInventory(options: PydocsLoaderOptions, destination: URL): Loader {
@@ -14,7 +15,6 @@ export function pydocsInventory(options: PydocsLoaderOptions, destination: URL):
     async load(context) {
       await loader.load(context);
       const inventory = new Inventory({ project: options.name });
-      const base = context.config.base.replace(/\/$/, '');
       const symbols = [...context.store.values()].map(entry => entry.data as PydocsEntry);
       const byPath = new Map(symbols.map(symbol => [symbol.path, symbol]));
       const documented = new Set(symbols.map(symbol => symbol.path));
@@ -24,10 +24,9 @@ export function pydocsInventory(options: PydocsLoaderOptions, destination: URL):
         const type = symbol.kind === 'function' ? (parent?.kind === 'class' ? 'method' : 'function')
           : symbol.kind === 'module' ? 'module' : symbol.kind === 'class' ? 'class'
           : symbol.labels.includes('property') ? 'property' : parent?.kind === 'module' ? 'data' : 'attribute';
-        const slash = context.config.trailingSlash === 'never' ? '' : '/';
         const target = {
           type: `py:${type}`, name: symbol.path,
-          location: `${base}/${symbol.page}${slash}${symbol.anchor ? `#${symbol.anchor}` : ''}`,
+          location: `${pageUrl(context.config, symbol.page)}${symbol.anchor ? `#${symbol.anchor}` : ''}`,
           display: symbol.path,
         };
         inventory.setEntry(target);

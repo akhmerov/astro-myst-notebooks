@@ -3,7 +3,7 @@ import type { Loader } from 'astro/loaders';
 import { mkdir, writeFile, rename } from 'node:fs/promises';
 import { resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { notebookPaths } from './paths.js';
+import { notebookPaths, pageUrl } from './paths.js';
 
 export type Source = { id: string; title: string };
 export type SourceLoaderOptions = Partial<Pick<Parameters<typeof glob>[0], 'pattern' | 'generateId'>> & {
@@ -23,10 +23,9 @@ export function sourceLoader(options: SourceLoaderOptions = {}): Loader {
       async function writeRoutes() {
         const routes = [...context.store.values()].filter(entry => entry.filePath?.endsWith('.md')).map(entry => {
           const id = entry.id.replace(/(^|\/)index$/, '');
-          const slash = context.config.trailingSlash === 'never' || !id ? '' : '/';
           return {
             path: resolve(fileURLToPath(context.config.root), entry.filePath!), name: entry.id,
-            title: String(entry.data.title), url: `${context.config.base.replace(/\/$/, '')}/${id}${slash}`,
+            title: String(entry.data.title), url: pageUrl(context.config, id),
           };
         });
         await mkdir(new URL('./', documents), { recursive: true });
