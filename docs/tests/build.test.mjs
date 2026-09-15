@@ -39,7 +39,7 @@ test('the documentation renders real Jupyter results and includes hidden setup',
 });
 
 test('includes retain their file identity and are excluded from the page collection', async () => {
-  const routes = JSON.parse(await readFile(new URL('../.astro/documents.json', import.meta.url), 'utf8'));
+  const routes = JSON.parse(await readFile(new URL('../node_modules/.astro/notebooks/documents.json', import.meta.url), 'utf8'));
   assert.equal(routes.length, names.length);
   const span = elements(pages.get('walkthrough')).find(node =>
     node.properties.dataSourceLocation && text(node) === 'included file');
