@@ -1,0 +1,46 @@
+import { build } from 'esbuild';
+import { mkdir, copyFile, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { dirname, join, resolve } from 'node:path';
+const require = createRequire(import.meta.url);
+const directory = 'dist/notebooks/browser';
+await rm(directory, { recursive: true, force: true });
+await mkdir(`${directory}/assets`, { recursive: true });
+const result = await build({
+  entryPoints: ['src/notebooks/client.ts', 'src/notebooks/element.ts'], outdir: directory,
+  bundle: true, splitting: true, format: 'esm', platform: 'browser', target: 'es2022',
+  loader: { '.svg': 'text' }, metafile: true, sourcemap: true,
+  plugins: [{ name: 'xeus-assets', setup(build) {
+    build.onResolve({filter:/^@jupyterlite\/xeus$/}, () => ({path:resolve('src/notebooks/xeus-kernel.ts')}));
+    build.onResolve({filter:/\?text$/}, args => ({path:require.resolve(args.path.replace('?text','.js'), {paths:[args.resolveDir]}),namespace:'raw-text'}));
+    build.onLoad({filter:/.*/,namespace:'raw-text'}, async args => ({contents:await readFile(args.path,'utf8'),loader:'text'}));
+  } }],
+});
+for (const [name, subdir, pattern] of [
+  ['thebe', 'lib', /\.(js|css|txt)$/],
+  ['@jupyterlite/xeus', 'lib', /\.worker\.js$/],
+  ['@emscripten-forge/mambajs-core', 'lib', /\.wasm$/],
+]) {
+  const root = dirname(require.resolve(`${name}/package.json`));
+  for (const file of await readdir(join(root, subdir))) if (pattern.test(file)) await copyFile(join(root,subdir,file),`${directory}/assets/${file}`);
+}
+// Include licenses and exact package identities for all bundled code, not only direct dependencies.
+const roots = new Set(Object.keys(result.metafile.inputs).filter(p=>p.includes('node_modules/') && !p.startsWith('(disabled):') && !p.startsWith('raw-text:')).map(p => {
+  const pieces = p.split('node_modules/');
+  const tail = pieces.pop().split('/');
+  const count = tail[0].startsWith('@') ? 2 : 1;
+  return pieces.join('node_modules/') + 'node_modules/' + tail.slice(0,count).join('/');
+}));
+for (const name of ['thebe','@jupyterlite/xeus','@emscripten-forge/mambajs-core']) roots.add(dirname(require.resolve(`${name}/package.json`)));
+const packages=[];
+let notices='Browser dependencies\n====================\n';
+for (const root of [...roots].sort()) {
+  const pkg=JSON.parse(await readFile(join(root,'package.json'),'utf8'));
+  packages.push({name:pkg.name,version:pkg.version,license:pkg.license});
+  notices+=`\n${pkg.name}@${pkg.version} (${pkg.license})\n`;
+  for(const file of await readdir(root)) if (/^(licen[sc]e|notice|copying)(\.|$)/i.test(file)) {
+    try { notices+=await readFile(join(root,file),'utf8'); } catch {}
+  }
+}
+await writeFile(`${directory}/DEPENDENCIES.json`,JSON.stringify(packages,null,2)+'\n');
+await writeFile(`${directory}/LICENSES.txt`,notices);

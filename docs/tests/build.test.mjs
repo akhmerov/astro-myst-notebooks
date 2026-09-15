@@ -1,0 +1,87 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile, access } from 'node:fs/promises';
+import { fromHtml } from 'hast-util-from-html';
+import { visit } from 'unist-util-visit';
+
+const output = new URL('../dist/', import.meta.url);
+const base = (process.env.DOCS_BASE ?? '/').replace(/\/$/, '');
+const names = ['', 'setup', 'walkthrough', 'authoring', 'browser', 'reference', 'development'];
+const pages = new Map(await Promise.all(names.map(async name => {
+  const html = await readFile(new URL(`${name ? name + '/' : ''}index.html`, output), 'utf8');
+  return [name, fromHtml(html)];
+})));
+const elements = tree => {
+  const found = [];
+  visit(tree, 'element', node => { found.push(node); });
+  return found;
+};
+const text = tree => {
+  const found = [];
+  visit(tree, 'text', node => { found.push(node.value); });
+  return found.join('');
+};
+
+test('the documentation renders real Jupyter results and includes hidden setup', () => {
+  const tree = pages.get('walkthrough');
+  const nodes = elements(tree);
+  const cells = nodes.filter(node => node.properties.className?.includes('jupyter-cell'));
+  assert.equal(cells.length, 5);
+  assert.ok(cells.some(node => node.properties.hidden && node.properties.dataSource.includes('IPython.display')));
+  const outputs = nodes.filter(node => node.properties.className?.includes('jupyter-output'));
+  assert.ok(outputs.some(node => text(node).includes('Sum: 36')));
+  assert.ok(outputs.some(node => node.properties.dataMime === 'text/html' && text(node).includes('Computed total: 36')));
+  const plot = nodes.find(node => node.properties.dataPlotly);
+  assert.deepEqual(JSON.parse(plot.properties.dataPlotly).data[0].y, [1, 3, 6, 10, 15, 21, 28, 36]);
+  assert.ok(nodes.some(node => node.tagName === 'jupyter-notebook'));
+  assert.ok(nodes.some(node => node.properties.className?.includes('katex')));
+  assert.ok(nodes.some(node => node.properties.id === 'triangular-sum'));
+});
+
+test('includes retain their file identity and are excluded from the page collection', async () => {
+  const routes = JSON.parse(await readFile(new URL('../.astro/documents.json', import.meta.url), 'utf8'));
+  assert.equal(routes.length, names.length);
+  const span = elements(pages.get('walkthrough')).find(node =>
+    node.properties.dataSourceLocation && text(node) === 'included file');
+  assert.ok(span);
+  const origin = JSON.parse(span.properties.dataSourceLocation);
+  assert.equal(origin.file, 'docs/src/content/docs/_partials/_provenance.md');
+  assert.equal(origin.kind, 'exact');
+  const source = await readFile(new URL(`../../${origin.file}`, import.meta.url), 'utf8');
+  assert.equal(source.slice(origin.start, origin.end), 'included file');
+});
+
+test('all local page links and fragment targets exist under the deployment base', () => {
+  const byPath = new Map([...pages].map(([name, tree]) => [
+    `${base}/${name ? name + '/' : ''}`, tree,
+  ]));
+  for (const [name, tree] of pages) {
+    const url = new URL(`${base}/${name ? name + '/' : ''}`, 'https://docs.example');
+    for (const node of elements(tree)) {
+      if (node.tagName !== 'a' || !node.properties.href) continue;
+      const destination = new URL(node.properties.href, url);
+      if (destination.origin !== url.origin || destination.protocol !== 'https:') continue;
+      const target = byPath.get(destination.pathname);
+      assert.ok(target, `${name}: unknown local page ${destination.pathname}`);
+      if (destination.hash) {
+        const id = decodeURIComponent(destination.hash.slice(1));
+        assert.ok(elements(target).some(element => element.properties.id === id),
+          `${name}: missing fragment ${destination.pathname}#${id}`);
+      }
+    }
+  }
+});
+
+test('the published site includes the browser runtime and source-selection code', async () => {
+  for (const asset of ['thebe/index.js', 'thebe/thebe.css', 'thebe/comlink.worker.js', 'thebe/coincident.worker.js', 'thebe/xeus' ]) {
+    await access(new URL(asset, output));
+  }
+  const tree = pages.get('walkthrough');
+  const scripts = elements(tree).filter(node => node.tagName === 'script' && node.properties.src);
+  assert.ok(scripts.length);
+  for (const script of scripts) {
+    const path = script.properties.src;
+    assert.ok(path.startsWith(`${base}/`));
+    await access(new URL(path.slice(base.length + 1), output));
+  }
+});

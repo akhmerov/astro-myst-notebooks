@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "conda": {
+    "nodejs": "24.*", "python": ">=3.11,<3.14", "nbclient": ">=0.10,<0.11",
+    "nbformat": ">=5.10,<6", "ipykernel": ">=6,<8", "packaging": ">=24,<27",
+    "jupyterlite-core": ">=0.8,<0.9", "micromamba": ">=2.0.5", "python-build": ">=1,<2"
+  },
+  "pypi": { "jupyterlite-xeus": ">=5.1,<6" },
+  "apiConda": { "griffe": ">=1,<3" },
+  "apiPypi": { "rst-to-myst": ">=0.4,<0.5" }
+}

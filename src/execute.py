@@ -7,6 +7,7 @@ from importlib.metadata import version
 from pathlib import Path
 
 CONTRACT = json.loads(Path(__file__).with_name("execution-contract.json").read_text())
+ENVIRONMENT = json.loads(Path(__file__).with_name("environment-contract.json").read_text())
 
 
 def environment(request):
@@ -14,6 +15,10 @@ def environment(request):
     from packaging.specifiers import SpecifierSet
 
     versions = {name: version(name) for name in CONTRACT["packages"]}
+    for name, installed in versions.items():
+        supported = ENVIRONMENT["conda"][name]
+        if installed not in SpecifierSet(supported):
+            raise RuntimeError(f"{name} {installed} does not satisfy supported requirement {supported}")
     if pixi := request.get("pixi"):
         manifest = tomllib.loads(Path(pixi["manifest"]).read_text())
         config = manifest.get("tool", {}).get("pixi", manifest)

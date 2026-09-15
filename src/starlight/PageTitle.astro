@@ -1,0 +1,43 @@
+---
+import PageTitle from '@astrojs/starlight/components/PageTitle.astro';
+---
+
+<div class="notebook-heading">
+  <PageTitle />
+  <div data-notebook-toolbar></div>
+</div>
+
+<style>
+  .notebook-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    margin-top: 1rem;
+  }
+  .notebook-heading :global(h1) { margin: 0; }
+  [data-notebook-toolbar], .notebook-heading :global(.live-controls) { display: contents; }
+  .notebook-heading :global(.live-actions) {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 9rem;
+    justify-content: flex-end;
+  }
+  .notebook-heading :global([role='status']) { grid-column: 1 / -1; }
+  .notebook-heading :global([data-thebe-reset]) { min-width: 2rem; padding-inline: 0.25rem; }
+  .notebook-heading :global([data-thebe-reset] span) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  @media (pointer: coarse) {
+    .notebook-heading :global([data-thebe-reset]) { min-width: 2.75rem; }
+  }
+  @media (max-width: 50rem) {
+    .notebook-heading { grid-template-columns: minmax(0, 1fr); }
+    .notebook-heading :global(.live-actions) { grid-column: 1; grid-row: 2; justify-content: flex-start; }
+  }
+</style>

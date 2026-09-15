@@ -12,6 +12,9 @@ ipykernel = ">=6,<8"
 packaging = ">=24,<27"
 git = "*"
 griffe = ">=1,<3"
+jupyterlite-core = ">=0.8,<0.9"
+micromamba = ">=2.0.5"
+python-build = ">=1,<2"
 
 [tasks]
 install = "npm ci"
@@ -19,6 +22,12 @@ build = { cmd = "npm run build", depends-on = ["install"] }
 check = { cmd = "npm run check", depends-on = ["install"] }
 test = { cmd = "npm test", depends-on = ["install"] }
 pack = { cmd = "npm pack", depends-on = ["install"] }
+docs = { cmd = "npm run docs:build", depends-on = ["install"] }
+docs-dev = { cmd = "npm run docs:dev -- --port {{ port }}", args = [{ arg = "port", default = "51300" }], depends-on = ["install"] }
+docs-preview = { cmd = "npm run docs:preview --", depends-on = ["install"] }
+docs-test = { cmd = "npm run docs:test", depends-on = ["install"] }
+docs-browser = { cmd = "npm run docs:test:browser", depends-on = ["docs"] }
 
 [pypi-dependencies]
 rst-to-myst = ">=0.4, <0.5"
+jupyterlite-xeus = ">=5.1, <6"

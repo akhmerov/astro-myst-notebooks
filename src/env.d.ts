@@ -1,7 +1,5 @@
-interface ImportMeta { readonly env: { readonly BASE_URL: string }; }
+/// <reference types="astro/client" />
 declare module 'virtual:notebook-options' {
   const options: import('./notebooks/types').BrowserOptions;
   export default options;
 }
-
-declare module '*.css';

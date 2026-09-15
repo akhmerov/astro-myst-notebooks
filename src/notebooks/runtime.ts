@@ -28,7 +28,7 @@ export function loadRuntime(options: BrowserOptions): Promise<ThebeGlobal> {
       config.id = 'jupyter-config-data';
       config.type = 'application/json';
       config.textContent = JSON.stringify({
-        baseUrl: options.xeus ? options.assetBase + '/' : import.meta.env.BASE_URL, appVersion: 'astro-myst-notebooks', enableServiceWorkerCache: false,
+        baseUrl: options.assetBase + '/', appVersion: 'astro-myst-notebooks', enableServiceWorkerCache: false,
       });
       document.head.append(config);
     }
@@ -39,36 +39,21 @@ export function loadRuntime(options: BrowserOptions): Promise<ThebeGlobal> {
       css.href = `${options.assetBase}/thebe.css`;
       document.head.append(css);
     }
-    if (options.xeus) {
-      const provider = await import('./xeus-server.js');
-      disposeXeus = provider.disposeXeusServer;
-      window.thebeLite = {
-        version: 'xeus-5.1.0',
-        startJupyterLiteServer: () => provider.startXeusServer(options.assetBase),
-      };
-    } else {
-      await script(`${options.assetBase}/thebe-lite.min.js`, options.startupTimeout);
-    }
+    const provider = await import('./xeus-server.js');
+    disposeXeus = provider.disposeXeusServer;
+    window.thebeLite = {
+      version: 'xeus-5.1.0',
+      startJupyterLiteServer: () => provider.startXeusServer(options.assetBase),
+    };
     await script(`${options.assetBase}/index.js`, options.startupTimeout);
     return window.thebe;
   })().catch(error => { runtime = undefined; throw error; });
 }
 
-/** Release a Thebe server, including Lite's unavailable-terminal edge case. */
+/** Dispose the service manager and the Xeus application it owns. */
 function disposeServer(server: ThebeServer) {
   try { server.dispose(); }
-  catch (error) {
-    const services = server.serviceManager;
-    // Thebe Lite 0.5 bundles a TerminalManager that skips polling setup when
-    // terminals are unavailable, but still calls that missing poller's dispose.
-    // ServiceManager has already disposed its contents/events/sessions and set
-    // its flag. A second public dispose skips it and completes Thebe cleanup.
-    if (!(error instanceof TypeError) || !services?.isDisposed ||
-        !services.sessions.isDisposed || services.terminals.isAvailable()) throw error;
-    server.dispose();
-  } finally {
-    if (server.serviceManager) disposeXeus?.(server.serviceManager);
-  }
+  finally { if (server.serviceManager) disposeXeus?.(server.serviceManager); }
 }
 
 /** A deadline bounds the UI even if an upstream shutdown promise never settles. */
@@ -138,12 +123,8 @@ export class NotebookSession {
     this.session = session;
     this.notebook!.attachSession(session);
     onSetup();
-    const packages = [...this.options.packages];
-    if (this.options.wheelUrl) packages.unshift(new URL(this.options.wheelUrl, location.href).href);
     const code = [
-      ...(this.options.xeus
-        ? (this.options.xeus.wheelPath ? ['import sys', `sys.path.insert(0, ${JSON.stringify(this.options.xeus.wheelPath)})`] : [])
-        : (packages.length ? ['import micropip', `await micropip.install(${JSON.stringify(packages)})`] : [])),
+      ...(this.options.wheelPath ? ['import sys', `sys.path.insert(0, ${JSON.stringify(this.options.wheelPath)})`] : []),
       this.options.setup,
     ].filter(Boolean).join('\n');
     if (!code) return;

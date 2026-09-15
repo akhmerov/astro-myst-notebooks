@@ -6,6 +6,10 @@ in consumer repositories. Python execution uses nbclient in the selected Pixi
 environment; do not introduce a separate Python distribution.
 
 Use `pixi run test` and `pixi run check`. Tests exercise the compiled package.
+The repo's own MyST documentation lives in `docs/` and imports the package's
+public exports. Use `pixi run docs-test` for its build, type, and output checks,
+and `pixi run docs-browser` for real browser notebook checks. Keep examples
+lightweight; use the existing Pixi Python environment.
 Use `pixi run pack` to build a distributable archive, then test that archive in
 the Pymablock consumer before changing browser or Astro integration boundaries.
 The package includes its Python adapter, contract JSON, CSS, and browser modules.

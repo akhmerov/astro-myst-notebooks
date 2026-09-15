@@ -1,6 +1,6 @@
 {
   "name": "astro-myst-notebooks",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "type": "module",
   "description": "MyST documents, Jupyter execution, source maps, and browser notebooks for Astro and Starlight",
   "license": "BSD-2-Clause",
@@ -8,9 +8,11 @@
     "node": ">=22.12.0"
   },
   "files": [
-    "dist"
+    "dist",
+    "npm-shrinkwrap.json"
   ],
   "exports": {
+    "./starlight/PageTitle.astro": "./dist/starlight/PageTitle.astro",
     ".": {
       "types": "./dist/notebooks/index.d.ts",
       "import": "./dist/notebooks/index.js"
@@ -33,28 +35,35 @@
       "types": "./dist/inventory.d.ts",
       "import": "./dist/inventory.js"
     },
-    "./autodoc": "./dist/autodoc.mjs"
+    "./autodoc": "./dist/autodoc.mjs",
+    "./starlight": {
+      "types": "./dist/starlight/index.d.ts",
+      "import": "./dist/starlight/index.js"
+    },
+    "./starlight/content": {
+      "types": "./dist/starlight/content.d.ts",
+      "import": "./dist/starlight/content.js"
+    },
+    "./starlight/api": {
+      "types": "./dist/starlight/api.d.ts",
+      "import": "./dist/starlight/api.ts"
+    }
   },
   "scripts": {
-    "build": "tsc && node scripts/copy-assets.mjs",
+    "build": "node scripts/clean.mjs && tsc && node scripts/copy-assets.mjs && node scripts/build-browser.mjs",
     "check": "tsc --noEmit",
     "test": "npm run build && node --test tests/*.test.mjs",
-    "prepack": "npm run build"
+    "docs:build": "npm run build && astro build --root docs",
+    "docs:dev": "npm run build && cd docs && astro dev",
+    "docs:preview": "cd docs && astro preview",
+    "docs:test": "npm run docs:build && tsc --noEmit -p docs && node --test docs/tests/build.test.mjs",
+    "docs:test:browser": "playwright test --config docs/playwright.config.ts",
+    "prepack": "npm run build && node scripts/prepare-release.mjs",
+    "release:check": "node scripts/test-package.mjs",
+    "postpack": "node scripts/finish-pack.mjs"
   },
   "dependencies": {
     "@astrojs/markdown-remark": "^7.3.1",
-    "@emscripten-forge/mambajs-core": "0.21.5",
-    "@jupyterlab/coreutils": "~6.6.3",
-    "@jupyterlab/services": "~7.6.3",
-    "@jupyterlab/services-extension": "^4.6.3",
-    "@jupyterlite/application": "^0.8.3",
-    "@jupyterlite/pyodide-kernel": "0.4.7",
-    "@jupyterlite/services": "^0.8.3",
-    "@jupyterlite/services-extension": "^0.8.3",
-    "@jupyterlite/xeus": "^5.1.0",
-    "@jupyterlite/xeus-extension": "^5.1.0",
-    "@lumino/coreutils": "^2.2.3",
-    "@lumino/widgets": "^2.9.0",
     "citation-js-utils": "^1.2.8",
     "hast-util-from-html": "^2.0.3",
     "hast-util-to-html": "^9.0.5",
@@ -69,18 +78,30 @@
     "myst-roles": "^1.7.3",
     "myst-to-html": "^1.7.3",
     "myst-transforms": "^1.3.50",
-    "plotly.js-dist-min": "^4.1.0",
     "rehype-katex": "^7.0.1",
     "remark-math": "^6.0.0",
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.2",
-    "thebe": "^0.9.3",
-    "thebe-core": "^0.5.0",
-    "thebe-lite": "^0.5.0",
     "unified": "^11.0.5",
     "unist-util-visit": "^5.1.0",
     "vfile": "^6.0.3",
-    "vite-plugin-static-copy": "^4.1.1"
+    "vite-plugin-static-copy": "^4.1.1",
+    "smol-toml": "^1.4.2"
+  },
+  "overrides": {
+    "markdown-it": {
+      "linkify-it": "^5.0.2"
+    },
+    "sanitize-html": "^2.17.7",
+    "myst-directives": {
+      "csv-parse": "^7.0.2"
+    },
+    "myst-transforms": {
+      "katex": "^0.16.47"
+    },
+    "jest-junit": {
+      "uuid": "^11.1.1"
+    }
   },
   "peerDependencies": {
     "astro": "^7.3.2",
@@ -96,10 +117,52 @@
     }
   },
   "devDependencies": {
+    "@astrojs/starlight": "^0.42.0",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^24.0.0",
     "@types/plotly.js-dist-min": "^2.3.4",
     "astro": "^7.3.2",
     "starlight-pydocs": "^0.2.1",
-    "typescript": "^6.0.3"
-  }
+    "typescript": "^6.0.3",
+    "@emscripten-forge/mambajs-core": "0.21.5",
+    "@jupyterlab/coreutils": "~6.6.3",
+    "@jupyterlab/services": "~7.6.3",
+    "@jupyterlab/services-extension": "^4.6.3",
+    "@jupyterlite/application": "^0.8.3",
+    "@jupyterlite/services": "^0.8.3",
+    "@jupyterlite/services-extension": "^0.8.3",
+    "@jupyterlite/xeus": "^5.1.0",
+    "@jupyterlite/xeus-extension": "^5.1.0",
+    "@lumino/coreutils": "^2.2.3",
+    "@lumino/widgets": "^2.9.0",
+    "thebe": "^0.9.3",
+    "thebe-core": "^0.5.0",
+    "plotly.js-dist-min": "^4.1.0",
+    "esbuild": "^0.28.2"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "@fortawesome/fontawesome-free@5.15.4": true
+  },
+  "bin": {
+    "astro-myst-notebooks": "dist/cli.mjs"
+  },
+  "keywords": [
+    "astro-integration",
+    "astro-loader",
+    "starlight-plugin",
+    "myst",
+    "jupyter",
+    "xeus"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "bundleDependencies": [
+    "myst-parser",
+    "myst-roles",
+    "myst-to-html",
+    "myst-transforms",
+    "citation-js-utils"
+  ]
 }

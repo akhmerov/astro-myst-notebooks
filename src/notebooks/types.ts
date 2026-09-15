@@ -1,22 +1,24 @@
 export interface BrowserOptions {
-  xeus?: { wheelPath?: string };
+  wheelPath?: string;
   assetBase: string;
-  packages: string[];
-  wheelUrl?: string;
   setup: string;
   kernelName: string;
   startupTimeout: number;
 }
 export interface InteractiveOptions {
-  xeus?: { environment: URL; command?: string[] };
-  packages?: string[];
+  /** Browser conda environment. Defaults to environment.yml in the Astro root. */
+  environment?: URL;
+  /** Custom JupyterLite command prefix. */
+  command?: string[];
+  /** Explicitly re-resolve the browser environment instead of reusing its cache. */
+  refresh?: boolean;
   setup?: string;
   kernelName?: string;
   startupTimeout?: number;
-  wheel?: { project: URL; command: string[] };
+  wheel?: { project: URL; command?: string[] };
 }
 export interface ExecutionOptions {
-  cwd: URL;
+  cwd?: URL;
   python?: string;
   timeout?: number;
   pixi?: { manifest: URL; feature: string };

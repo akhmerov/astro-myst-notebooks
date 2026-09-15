@@ -1,199 +1,80 @@
 # Astro MyST Notebooks
 
-An Astro integration for MyST Markdown, Jupyter execution, MIME outputs,
-browser-local Python, and source mappings for commenting. Extracted from the
-Pymablock Starlight prototype; this is an experimental package, not a published
-release. Pymablock remains the full-site integration test consumer.
+MyST documents, native Jupyter execution, rich MIME outputs, browser-local
+Python, and text source maps for Astro and Starlight. Extracted from Pymablock;
+this is an experimental package, not a published release.
+
+## Add documentation to a project
+
+The Starlight preset manages MyST rendering, Jupyter execution, references, and
+the prepared Xeus browser environment. Its initializer creates a working site
+and Pixi tasks:
+
+```sh
+npx astro-myst-notebooks init --dir docs --pixi-environment docs
+pixi run -e docs docs-dev
+```
+
+Add `--api mypackage` to include Python API documentation. Version 0.3 is
+prepared in this source repository; registry publication is pending. See the
+[unpublished release workflow](docs/src/content/docs/development.md#test-an-unpublished-release)
+for testing its archive.
+
+## Read and run the documentation
+
+This repository builds its own documentation with its public integration and
+content loader. The executable walkthrough runs through real Jupyter at build
+time and can be edited and rerun in the browser.
+
+```sh
+pixi run docs
+pixi run docs-preview
+```
+
+For live authoring, run `pixi run docs-dev 51300` (the port defaults to 51300).
+Pass additional Astro flags after `--`, for example
+`pixi run docs-dev 51300 -- --host 0.0.0.0`. The site output is `docs/dist/`;
+the compiled npm package stays in the root `dist/`.
+
+- [Overview](docs/src/content/docs/index.md)
+- [Set up a site](docs/src/content/docs/setup.md)
+- [Executable walkthrough](docs/src/content/docs/walkthrough.md)
+- [Author MyST](docs/src/content/docs/authoring.md)
+- [Browser execution](docs/src/content/docs/browser.md)
+- [Configuration and API](docs/src/content/docs/reference.md)
+- [Development and validation](docs/src/content/docs/development.md)
 
 ## Develop and package
 
 ```sh
 pixi run test
 pixi run check
+pixi run docs-test
 pixi run pack
 ```
 
-Pixi locks Node, Python, and the Jupyter executor environment. npm locks the
-JavaScript dependency graph. `npm pack` compiles TypeScript, includes the Python
-adapter and runtime assets, and produces `astro-myst-notebooks-0.2.1.tgz`.
-Tests import that compiled output and execute real Jupyter kernels.
+`docs-test` builds the site, checks its TypeScript, and verifies rendered output,
+links, included-source origins, and browser assets. Use
+`DOCS_BASE=/manual/ pixi run docs-test` to check a deployment prefix.
 
-The npm package is the distribution unit. There is no Python distribution:
-`execute.py` is a versioned JSON adapter around `nbclient`, running with the
-consumer's Python interpreter. Consumers own their Pixi requirements and lockfile.
-The configured Pixi feature is checked before execution; incompatible installed
-`nbclient`, `nbformat`, or `ipykernel` versions fail before page execution. This
-checks declared ranges and the adapter protocol, not every possible combination
-of Jupyter versions.
+For real browser execution and reset checks:
 
-## Use in a Starlight site
-
-Install the packed artifact with npm, then register the integration before
-Starlight in `astro.config.mjs`:
-
-```js
-import { defineConfig } from 'astro/config';
-import starlight from '@astrojs/starlight';
-import notebooks from 'astro-myst-notebooks';
-
-export default defineConfig({
-  integrations: [
-    notebooks({
-      execution: {
-        cwd: new URL('../../', import.meta.url),
-        timeout: 120,
-        pixi: {
-          manifest: new URL('../../pyproject.toml', import.meta.url),
-          feature: 'docs',
-        },
-      },
-      documents: new URL('./.astro/documents.json', import.meta.url),
-      referenceCache: new URL('./.astro/references/', import.meta.url),
-      interactive: { packages: ['numpy', 'matplotlib'] },
-    }),
-    starlight({ title: 'My project' }),
-  ],
-});
+```sh
+pixi run npx playwright install chromium
+pixi run docs-browser
 ```
 
-Paths above assume a site in `docs/site/`; adapt them to your project. Run Astro
-inside your Pixi docs environment, with Python 3.11 or later and `nbclient`,
-`nbformat`, `ipykernel`, and `packaging` installed. Use PEP 440 version ranges for
-the three Jupyter dependencies in the named Pixi feature. Scientific packages
-needed by authored examples belong to that consumer environment.
+An existing Chromium binary can be selected with
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE`; `DOCS_PORT` selects the test server port.
+Browser-runtime downloads require network access.
 
-Load MyST through the public Astro glob loader wrapper in `src/content.config.ts`:
+The npm archive includes the Python adapter and runtime assets; there is no
+separate Python distribution. Consumers own their content, branding, scientific
+Python dependencies, and browser environments. Native execution uses `nbclient`
+in the selected Pixi environment.
 
-```ts
-import { defineCollection } from 'astro:content';
-import { docsSchema } from '@astrojs/starlight/schema';
-import { sourceLoader } from 'astro-myst-notebooks/loader';
+Pymablock remains the downstream integration consumer. Before changing browser
+or Astro integration boundaries, pack this repository, install the archive in
+Pymablock, and run its build-contract and browser checks.
 
-export const collections = {
-  docs: defineCollection({
-    loader: sourceLoader({
-      base: new URL('./content/docs/', import.meta.url),
-      pattern: '**/[^_]*.md',
-      documents: new URL('../.astro/documents.json', import.meta.url),
-      // Optional files under base with an explicit route and title:
-      // sources: { 'lessons/intro.md': { id: 'intro', title: 'Intro' } },
-    }),
-    schema: docsSchema(),
-  }),
-};
-```
-
-Use the same `documents` URL in the loader and integration. It records actual
-routes for cross-page references. For sources in multiple directories, set `base`
-to their common ancestor, use relative patterns, and supply Astro's `generateId`
-callback to control routes. Astro does not accept patterns starting with `../`.
-Rendering is deferred until page build so
-execution failures fail the build. Ordinary Python fences do not execute;
-MyST `{code-cell}` directives do. One fresh Jupyter kernel runs each page,
-preserving cell order and hidden setup cells. No persistent execution cache is
-used: every build reexecutes pages. Restart the dev server after library or
-environment changes.
-
-## API documentation and references
-
-Use `starlight-pydocs` for API extraction, pages, and navigation. This package
-provides an optional `pydocsInventory(options, destination)` loader from
-`astro-myst-notebooks/pydocs`; it wraps Pydocs' public loader and writes the real
-object routes to a local inventory. Pass that destination as `localInventory`
-to the integration. Install `starlight-pydocs` in the consuming site when using
-this adapter. Package-specific API settings and presentation belong to the site.
-
-The integration's `references` maps project keys to either
-`{ url: 'https://example.org/objects.inv' }` or
-`{ file: new URL('./objects.inv', import.meta.url), base: 'https://example.org/' }`.
-Sphinx v2 inventories support MyST `xref:project#target` links and the registered
-`{autolink}` role. Ambiguous or missing targets fail the build. Downloaded
-inventories are validated and cached; `refresh: true` explicitly refreshes them.
-
-## Browser execution
-
-Thebe supplies the editors, controls, and Jupyter MIME rendering. Browser
-execution has two providers:
-
-- Without `xeus`, Thebe Lite starts its bundled Pyodide kernel. Configure its
-  `packages` and optional wheel; first activation downloads Python packages.
-- With `xeus: { environment: new URL('./environment.yml', import.meta.url) }`,
-  JupyterLite Xeus builds an Emscripten-forge environment and the site hosts it.
-  Use this for compiled packages available through Emscripten-forge, such as
-  Kwant. Install `jupyterlite-core` 0.8, `jupyterlite-xeus` 5.1, and `micromamba`
-  in the build environment. Configure dependencies in the environment YAML,
-  not `interactive.packages`. The optional `xeus.command` selects the JupyterLite
-  build command, defaulting to `['jupyter', 'lite']`.
-
-Optional `interactive.wheel` accepts `{ project: URL, command: string[] }`.
-The integration appends `-d OUTPUT_DIRECTORY` and requires exactly one wheel.
-Pyodide installs it with micropip. Xeus mounts it at `/opt/wheels/` and adds it
-to Python's import path; this supports pure-Python wheels. Compiled libraries
-belong in the Emscripten environment. `setup`, `startupTimeout`, and `kernelName`
-configure startup; `interactive: false` disables live execution.
-
-The Xeus provider uses JupyterLite's public service plugins and Thebe's provider
-contract. Its small kernel subclass loads the upstream classic workers intact
-and respects the disabled JupyterLab drive on standalone documentation pages.
-Vite copies the workers, their decompressor, and the built environment without
-rewriting worker internals. The native Jupyter executor remains unchanged.
-
-Run all preserves source order; reset terminates the kernel worker, including
-an infinite loop, and preserves edited cells. Static and live output use one
-MIME selection policy for text, HTML, images, LaTeX, and Plotly. Notebook output
-is trusted content. Widgets and arbitrary JavaScript MIME bundles are unsupported.
-Browser dependencies are separate from native Pixi dependencies. Consumers own
-the browser specification; neither provider currently enforces a complete
-transitive browser lockfile. Xeus dependencies are bundled at build time. Thebe Lite 0.5 also needs a documented terminal-manager disposal guard.
-
-## MyST and source maps
-
-Parsing and semantics use `myst-parser`, `myst-transforms`, `myst-to-html`, and
-Citation.js. Includes, local BibTeX citations, numbered targets, and cross-page
-references are supported. Unsupported constructs fail explicitly; this does
-not implement the entire MyST project system or arbitrary Sphinx extensions.
-
-`window.mystSourceMap.resolve(range)` maps a DOM selection to authored text.
-Results contain repository-relative paths, Git revision, content SHA-256,
-UTF-16 offsets, selected text, and coverage. `kind: "exact"` identifies precise
-text; `kind: "range"` is a containing source region. Generated text is unmapped.
-CommonMark/GFM source positions and MyST directive tokens supply origins;
-filtered includes must map uniquely to a contiguous region. Comment persistence
-and relocation across revisions belong to consumers. Executable cell metadata
-and structured failures retain source origins; edits in the browser do not
-rewrite those original origins.
-
-## Consumer validation
-
-Pymablock installs a checked-in npm tarball, so its build needs no sibling path
-or npm link. Its build-contract test covers repeated execution and failure
-recovery; Playwright covers the complete rendered site and real browser kernels.
-To update that consumer, pack this repository, replace its vendored tarball,
-reinstall the file dependency to update the lockfile, and run those checks.
-
-Originally developed in Pymablock. Distributed under its BSD-2-Clause license;
-see LICENSE. Source files and runtime assets ship in `dist/`, with TypeScript
-declarations for the public integration and loader APIs.
-
-
-### NumPy/RST API docstrings and inline MyST API blocks
-
-`griffe_myst.py` is an optional Griffe extension for NumPy-style docstrings
-containing RST. It uses `rst-to-myst` and its existing Docutils/Markdown token
-pipeline; consumers install `griffe` and `rst-to-myst` in their Pixi environment.
-`class_only`, `exclude`, and `documents` configure Sphinx class-doc conventions,
-excluded modules, and doc-role routes. Pydocs resolves generated API links.
-
-`AutodocContent.astro` is a Starlight MarkdownContent override that renders
-MyST `{autodoc}` blocks through Pydocs' public components. The `summary-only`
-option retains module introductions without repeating members. It accepts an
-optional mapping of old anchors to current anchors (`@top` means page content
-start). HTML parsing preserves the surrounding text and source-map markers.
-Configure Pydocs' `DocstringSections` override to `CheckedDocstrings.astro` to
-reject silently dropped docstring prose or unknown section types.
-
-Labelled equations are numbered by default; explicit MyST enumeration choices
-are respected. Anonymous renderer fragments do not receive invented file
-origins. `exportInventory` from `/inventory` combines the typed API inventory
-with document targets after the build. Pass Astro's deployment `base` so public
-inventory URLs are relative to that site, including at a nested prefix.
+Distributed under the BSD-2-Clause license; see [LICENSE](LICENSE).

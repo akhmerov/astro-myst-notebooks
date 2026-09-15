@@ -1,0 +1,124 @@
+---
+title: Development
+description: Build this documentation site, run its checks, and validate the distribution in consumers.
+---
+
+This repository's documentation is an Astro/Starlight consumer of its own
+compiled package. `docs/astro.config.mjs` imports `astro-myst-notebooks/starlight`, and the
+content collection imports `astro-myst-notebooks/starlight/content`. There is no copied
+renderer or separate documentation execution script.
+
+## Build and preview
+
+From the repository root:
+
+```sh
+pixi run docs
+pixi run docs-preview
+```
+
+The build compiles the package, renders this site's MyST files, and executes the
+[walkthrough](walkthrough.md) with real Jupyter. Static files go to `docs/dist/`;
+package output stays in the root `dist/`. Preview prints its local URL.
+
+For authoring:
+
+```sh
+pixi run docs-dev 51300
+```
+
+The port is optional and defaults to 51300. Additional Astro CLI options go
+after `--`, for example `pixi run docs-dev 51300 -- --host 0.0.0.0`.
+The dev task compiles the package once before
+starting Astro. Restart it after changing package implementation or Python
+dependencies. Source prose edits and page additions/removals are handled by Astro's watcher.
+
+This site's native examples use standard-library Python and IPython. The Pixi
+environment also contains the Xeus build tools. `docs/environment.yml` declares
+the browser environment, whose completed artifacts are cached between builds.
+
+
+## Validation
+
+```sh
+pixi run test
+pixi run check
+pixi run docs-test
+```
+
+Package tests exercise compiled output and real native kernels. The docs test
+builds the site and checks rendered results, document links, included-source
+origins, and the emitted browser assets. It also catches missing pages in the
+site's own navigation.
+
+To check a deployment prefix:
+
+```sh
+DOCS_BASE=/manual/ pixi run docs-test
+```
+
+Browser checks use Playwright against the built site:
+
+```sh
+pixi run npx playwright install chromium
+pixi run docs-browser
+```
+
+Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to use an existing Chromium binary, or
+`DOCS_PORT` to choose the local test server port. The browser suite checks the
+rendered page, source selections, and real Python activation, execution, and
+reset. Initial browser-runtime downloads require network access.
+
+## Build the distribution
+
+```sh
+pixi run pack
+```
+
+The npm archive includes the compiled modules, TypeScript declarations, Python
+adapter, contract JSON, styles, and browser files. Documentation source and
+site output are development assets and are excluded from the archive.
+
+Pymablock remains the downstream consumer for broader Python API and Xeus
+coverage. Before changing browser or Astro integration boundaries, install the
+packed archive in that consumer and run its build-contract and browser checks.
+The local site does not exercise every optional provider or Griffe adapter.
+
+## Test an unpublished release
+
+```sh
+pixi run pack
+pixi run npm run release:check
+pixi run npm run release:check -- --api
+```
+
+The release check runs the CLI from the packed archive in an empty temporary
+consumer, installs its dependencies, and builds at `/` and `/manual/`. It also
+checks both default and explicit dev-port arguments. The temporary consumer is
+retained for inspection. Run this check before publishing a release.
+
+To initialize another project from an unpublished archive, run from that
+project's root (use an absolute archive path):
+
+```sh
+npm exec --package=/path/to/astro-myst-notebooks-0.3.0.tgz -- astro-myst-notebooks init --package /path/to/astro-myst-notebooks-0.3.0.tgz
+```
+
+## Dependency maintenance
+
+The release build bundles browser JavaScript and copies the supported classic
+Xeus workers. Consumers serve these files unchanged; their Astro build does not
+compile Jupyter workers. Exact bundled package identities and license notices
+are included in `dist/notebooks/browser/`.
+
+The tested MyST dependency graph is bundled into the npm archive. This carries
+patched transitive versions and matching dependency declarations to consumers, where npm would otherwise ignore our
+root overrides. The small manifest patches are recorded in `dist/DEPENDENCY-PATCHES.json`;
+a production shrinkwrap is generated during packing. Review
+both development and fresh-consumer audits; browser libraries that ship their
+own compiled code need separate scrutiny.
+
+The upstream Markdown-it 13 advisories remain: upgrading it breaks MyST's math
+plugin's internal imports. The development tree also retains upstream Thebe
+peer dependencies and deprecation warnings; consumers do not install Thebe or
+Pyodide packages. Keep the reviewed `allowScripts` entries version-specific.

@@ -2,3 +2,9 @@ node_modules/
 dist/
 .pixi/
 *.tgz
+.astro/
+test-results/
+playwright-report/
+npm-shrinkwrap.json
+
+.release-manifests.json

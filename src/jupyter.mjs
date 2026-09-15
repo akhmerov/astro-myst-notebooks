@@ -129,15 +129,18 @@ export function remarkJupyter({ interactive = false, ...options } = {}) {
         type, data: { hName: tag, hProperties: properties }, children,
       });
       const button = (attribute, label, hidden = false) => element('notebookButton', 'button', {
-        type: 'button', [attribute]: '', hidden,
-      }, [{ type: 'text', value: label }]);
+        type: 'button', [attribute]: '', hidden, disabled: attribute === 'dataThebeActivate',
+        title: attribute === 'dataThebeActivate' ? 'Enable editing and running without executing cells'
+          : attribute === 'dataThebeRunAll' ? 'Run all cells in Python in your browser'
+          : 'Restart Python: clear state and keep your edits',
+      }, [element('notebookButtonLabel', 'span', {}, [{ type: 'text', value: label }])]);
       const controls = element('notebookControls', 'div', { className: ['live-controls'], dataThebeControls: '' }, [
-        button('dataThebeActivate', 'Run interactively'),
-        button('dataThebeRunAll', 'Run all', true),
-        button('dataThebeReset', 'Reset session', true),
-        element('notebookStatus', 'span', { role: 'status', ariaLive: 'polite' }, [
-          { type: 'text', value: 'Edit and run Python in your browser.' },
+        element('notebookActions', 'div', { className: ['live-actions'] }, [
+          button('dataThebeActivate', 'Enable interactivity'),
+          button('dataThebeRunAll', 'Run all', true),
+          button('dataThebeReset', 'Restart Python', true),
         ]),
+        element('notebookStatus', 'span', { role: 'status', ariaLive: 'polite' }, []),
       ]);
       tree.children = [element('notebook', 'jupyter-notebook', {}, [controls, ...tree.children])];
     }

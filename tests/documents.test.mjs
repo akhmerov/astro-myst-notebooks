@@ -15,6 +15,21 @@ async function fixture(fn) {
 }
 const nodes = (tree, type) => { const found = []; visit(tree, type, node => { found.push(node); }); return found; };
 
+test('CSV directives preserve quoted delimiters, escaped quotes, headers and custom delimiters', () => fixture(async root => {
+  for (const delimiter of [',', ';']) {
+    const source = [
+      '```{csv-table}', `:delim: ${delimiter}`, ':header-rows: 1', '',
+      `Name${delimiter}Value`, `"left${delimiter} right"${delimiter}"a ""quote"""`, '```',
+    ].join('\n');
+    const tree = await resolveDocument(source, { path: join(root, 'table.md') }, { root });
+    const rows = nodes(tree, 'tableRow');
+    assert.deepEqual(rows.map(row => row.children.map(cell => nodes(cell, 'text').map(node => node.value).join(''))),
+      [['Name', 'Value'], [`left${delimiter} right`, 'a "quote"']]);
+    assert.ok(rows[0].children.every(cell => cell.header === true));
+    assert.ok(rows[1].children.every(cell => !cell.header));
+  }
+}));
+
 test('MyST includes, citations, numbered targets and cross-page routes resolve through existing transforms', () => fixture(async root => {
   const main = '---\ntitle: Main\nbibliography: refs.bib\n---\n\n```{include} part.md\n```\n\nSee {eq}`energy` and {numref}`icon` and {cite:p}`example`.\n\n[](./other.md#other-equation)';
   const part = 'An **included phrase** with α and 🧪.\n\n(energy)=\n```{math}\nE=mc^2\n```\n\n```{figure} /icon.png\n:name: icon\n\nAn icon.\n```';
