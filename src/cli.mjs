@@ -18,7 +18,7 @@ export async function initialize({ root = process.cwd(), dir = 'docs', environme
   root = resolve(root);
   const site = resolve(root, dir);
   const localDir = relative(root, site).split(sep).join('/');
-  if (!localDir || localDir.startsWith('../') || !/^[\w./-]+$/.test(localDir)) throw new Error('--dir must be a simple relative directory inside the project');
+  if (!localDir || /^\.\.(\/|$)/.test(localDir) || !/^[\w./-]+$/.test(localDir)) throw new Error('--dir must be a simple relative directory inside the project');
   if (!/^[a-z][a-z0-9-]*$/.test(environment)) throw new Error('Invalid Pixi environment name');
   if (api && !/^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$/.test(api)) throw new Error('--api must be a Python module name');
   let manifest = join(root, 'pixi.toml');
@@ -65,7 +65,7 @@ export async function initialize({ root = process.cwd(), dir = 'docs', environme
   const conda={...contract.conda,...(api?contract.apiConda:{})};
   // Existing dependency constraints remain authoritative; Pixi verifies solvability.
   const declared={...data.dependencies,...data.feature?.[feature]?.dependencies};
-  const additions=Object.entries(conda).filter(([name])=>!declared[name]).map(([name,range])=>`${name}${range==='24.*'?'='+range:range}`);
+  const additions=Object.entries(conda).filter(([name])=>!declared[name]).map(([name,range])=>`${name}${/^[\d*]/.test(range)?'='+range:range}`);
   if(additions.length) run('pixi',['add',...common,'--feature',feature,'--no-install',...additions],root);
   const pypi={...contract.pypi,...(api?contract.apiPypi:{})};
   const declaredPypi={...data['pypi-dependencies'],...data.feature?.[feature]?.['pypi-dependencies']};
