@@ -99,12 +99,11 @@ class JupyterNotebook extends HTMLElement {
   private setState(state: State, message?: string) {
     this.state = state;
     this.controls.dataset.state = state;
-    this.dataset.state = state;
     if (message !== undefined) this.status.textContent = message;
     const active = state === 'ready' || state === 'running' || state === 'resetting';
     this.activateButton.hidden = active;
     this.activateButton.disabled = state === 'loading' || state === 'disposed';
-    this.activateButton.textContent = state === 'error' ? 'Retry interactivity' : 'Enable interactivity';
+    (this.activateButton.querySelector('span') ?? this.activateButton).textContent = state === 'error' ? 'Retry interactivity' : 'Enable interactivity';
     this.runButton.hidden = !active;
     this.resetButton.hidden = !active;
     this.runButton.disabled = state !== 'ready' || this.busy.size > 0;
