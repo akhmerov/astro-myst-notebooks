@@ -27,19 +27,24 @@ export async function buildEnvironment(options: InteractiveOptions, { root, cach
   const environment = options.environment ?? new URL('environment.yml', root);
   const spec = await readFile(environment).catch(() => { throw new Error(`Missing browser environment ${fileURLToPath(environment)}. Run astro-myst-notebooks init, or set interactive.environment.`); });
   const versions = (await run(python, ['-c', 'import importlib.metadata as m,json; print(json.dumps({p:m.version(p) for p in ["jupyterlite-core","jupyterlite-xeus"]},sort_keys=True))'])).stdout.trim();
+  const [command, ...args] = options.command ?? ['jupyter', 'lite'];
+  if (!command) throw new Error('The browser build command must not be empty');
   const base = fileURLToPath(new URL('browser/', cache));
   await mkdir(base, { recursive: true });
-  const work = await mkdtemp(join(base, '.build-'));
+  // Scratch space is created only when a wheel is built or the cache misses.
+  let work: string | undefined;
+  const scratch = async () => work ??= await mkdtemp(join(base, '.build-'));
   try {
     let wheelPath: string | undefined;
     let wheelHash: string | undefined;
-    const wheels = join(work, 'wheels');
+    let wheels: string | undefined;
     if (options.wheel) {
+      wheels = join(await scratch(), 'wheels');
       await mkdir(wheels);
       if (options.wheel.command) {
-        const [command, ...args] = options.wheel.command;
-        if (!command) throw new Error('The wheel build command must not be empty');
-        await run(command, [...args, '-d', wheels], { cwd: fileURLToPath(options.wheel.project), maxBuffer: 10 * 1024 * 1024 });
+        const [wheelCommand, ...wheelArgs] = options.wheel.command;
+        if (!wheelCommand) throw new Error('The wheel build command must not be empty');
+        await run(wheelCommand, [...wheelArgs, '-d', wheels], { cwd: fileURLToPath(options.wheel.project), maxBuffer: 10 * 1024 * 1024 });
       } else {
         await run(python, ['-m', 'build', '--wheel', '--no-isolation', '--outdir', wheels, fileURLToPath(options.wheel.project)], { maxBuffer: 10 * 1024 * 1024 });
       }
@@ -51,7 +56,7 @@ export async function buildEnvironment(options: InteractiveOptions, { root, cach
       wheelHash = (await run(python, ['-c', 'import hashlib,zipfile,sys; z=zipfile.ZipFile(sys.argv[1]); h=hashlib.sha256(); [(h.update(n.encode()),h.update(b"\\0"),h.update(z.read(n))) for n in sorted(z.namelist())]; print(h.hexdigest())', join(wheels, name)])).stdout.trim();
       wheelPath = `/opt/wheels/${name}`;
     }
-    const inputs = { format: 1, spec: spec.toString(), versions, command: options.command ?? ['jupyter', 'lite'], wheelHash, wheelPath };
+    const inputs = { format: 1, spec: spec.toString(), versions, command: [command, ...args], wheelHash, wheelPath };
     const key = digest(JSON.stringify(inputs));
     const destination = join(base, key);
     if (!options.refresh) {
@@ -65,26 +70,25 @@ export async function buildEnvironment(options: InteractiveOptions, { root, cach
       } catch { /* Absent or incomplete caches are rebuilt below. */ }
     }
     log('[notebooks] Building Xeus browser environment');
-    const site = join(work, 'site');
-    const lite = join(work, 'lite');
+    const build = await scratch();
+    const site = join(build, 'site');
+    const lite = join(build, 'lite');
     await mkdir(lite);
-    const [command, ...args] = options.command ?? ['jupyter', 'lite'];
-    if (!command) throw new Error('The browser build command must not be empty');
     await run(command, [...args, 'build', `--XeusAddon.environment_file=${fileURLToPath(environment)}`,
       `--output-dir=${site}`, `--lite-dir=${lite}`,
-      ...(wheelPath ? [`--XeusAddon.mounts=${wheels}:/opt/wheels`] : []),
+      ...(wheels ? [`--XeusAddon.mounts=${wheels}:/opt/wheels`] : []),
     ], { cwd: fileURLToPath(root), maxBuffer: 20 * 1024 * 1024 });
     await stat(join(site, 'xeus'));
-    await writeFile(join(work, 'build.json'), JSON.stringify({ inputs, artifacts: await artifacts(site) }));
+    await writeFile(join(build, 'build.json'), JSON.stringify({ inputs, artifacts: await artifacts(site) }));
     // Keep only the completed site and its provenance; mounts are included in it.
     await rm(lite, { recursive: true, force: true });
-    await rm(wheels, { recursive: true, force: true });
+    if (wheels) await rm(wheels, { recursive: true, force: true });
     // Rename only completed work. A failed refresh leaves the old cache intact.
     const previous = `${destination}.previous-${process.pid}`;
     try { await rename(destination, previous); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
-    try { await rename(work, destination); }
+    try { await rename(build, destination); }
     catch (error) { await rename(previous, destination).catch(() => {}); throw error; }
     await rm(previous, { recursive: true, force: true });
     return { directory: join(destination, 'site'), wheelPath };
-  } finally { await rm(work, { recursive: true, force: true }); }
+  } finally { if (work) await rm(work, { recursive: true, force: true }); }
 }
