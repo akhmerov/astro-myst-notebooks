@@ -19,7 +19,15 @@ export function sourceLoader(options: SourceLoaderOptions = {}): Loader {
       const base = options.base ?? new URL('content/docs/', context.config.srcDir);
       const documents = options.documents ?? notebookPaths(context.config).documents;
       let loading = true;
+      let scheduled = false;
       let pending = Promise.resolve();
+      // A burst of store updates (save-all, branch switch) produces one rewrite.
+      const schedule = () => {
+        if (loading || scheduled) return;
+        scheduled = true;
+        pending = pending.then(() => { scheduled = false; return writeRoutes(); })
+          .catch(error => { context.logger.error(`Unable to update MyST routes: ${error.message}`); });
+      };
       async function writeRoutes() {
         const routes = [...context.store.values()].filter(entry => entry.filePath?.endsWith('.md')).map(entry => {
           const id = entry.id.replace(/(^|\/)index$/, '');
@@ -39,9 +47,7 @@ export function sourceLoader(options: SourceLoaderOptions = {}): Loader {
           if (typeof value !== 'function') return value;
           return (...args: unknown[]) => {
             const result = value.apply(target, args);
-            if (!loading && ['set', 'delete', 'clear'].includes(String(key))) {
-              pending = pending.then(writeRoutes).catch(error => { context.logger.error(`Unable to update MyST routes: ${error.message}`); });
-            }
+            if (['set', 'delete', 'clear'].includes(String(key))) schedule();
             return result;
           };
         },
