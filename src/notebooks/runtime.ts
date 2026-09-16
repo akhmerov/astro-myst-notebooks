@@ -142,6 +142,7 @@ export class NotebookSession {
     const generation = this.generation;
     for (const [index, cell] of this.notebook!.cells.entries()) {
       if (this.closed || generation !== this.generation) return;
+      if (tags(index).includes('skip-execution')) continue; // Still runnable one cell at a time.
       const result = await cell.execute();
       if (!result) throw new Error('A cell failed. Fix the error shown below and run again.');
       // Documented exceptions continue, matching the build's raises-exception semantics.

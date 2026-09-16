@@ -68,21 +68,30 @@ export function remarkJupyter({ interactive = false, ...options } = {}) {
       }
     });
     if (!cells.length) return;
-    let notebook;
+    // MyST frontmatter `execute.skip` (formerly `skip_execution`) publishes the
+    // page's cells without running them; the skip-execution tag does so per cell.
+    const skipPage = metadata.execute?.skip === true || metadata.skip_execution === true;
     const sources = cells.map(({ node, parent }, index) => ({
       id: createHash('sha256').update(`${file.path}:${index}:${node.value}`).digest('hex').slice(0, 32),
       source: node.value, origin: node.data?.origin, tags: [...(parent.data?.tags ?? [])],
     }));
-    const key = JSON.stringify([file.path, sources, execution]);
-    try {
-      if (!notebooks.has(key)) {
-        notebooks.set(key, executePage(sources, execution));
-        console.info(`[jupyter] ${file.path}: executing ${cells.length} cells`);
+    const executed = sources.filter(source => !skipPage && !source.tags.includes('skip-execution'));
+    // Outputs by cell index; skipped cells publish their input only.
+    const results = new Map();
+    if (executed.length) {
+      const key = JSON.stringify([file.path, executed, execution]);
+      let notebook;
+      try {
+        if (!notebooks.has(key)) {
+          notebooks.set(key, executePage(executed, execution));
+          console.info(`[jupyter] ${file.path}: executing ${executed.length} cells`);
+        }
+        notebook = await notebooks.get(key);
+      } catch (error) {
+        notebooks.delete(key);
+        file.fail(`${error.cell?.origin?.file ?? file.path}: ${error.message}`, error.cell?.origin?.position);
       }
-      notebook = await notebooks.get(key);
-    } catch (error) {
-      notebooks.delete(key);
-      file.fail(`${error.cell?.origin?.file ?? file.path}: ${error.message}`, error.cell?.origin?.position);
+      executed.forEach((source, index) => results.set(sources.indexOf(source), notebook.cells[index].outputs));
     }
     for (let i = cells.length - 1; i >= 0; i--) {
       const { node, parent } = cells[i];
@@ -101,8 +110,8 @@ export function remarkJupyter({ interactive = false, ...options } = {}) {
           ],
         });
         if (!flags.has('hide-output')) {
-          const outputs = notebook.cells[i].outputs.filter(bundle => bundle.output_type !== 'stream' || !flags.has(`remove-${bundle.name}`));
-          for (const bundle of outputs) replacement.push({
+          const published = (results.get(i) ?? []).filter(bundle => bundle.output_type !== 'stream' || !flags.has(`remove-${bundle.name}`));
+          for (const bundle of published) replacement.push({
             type: 'jupyterOutput', data: { hName: 'jupyter-output', hProperties: { bundle } }, children: [],
           });
         }

@@ -12,9 +12,9 @@ import { ansiToHast } from '../dist/ansi.mjs';
 
 const cwd = fileURLToPath(new URL('../', import.meta.url));
 
-async function render(source) {
+async function render(source, frontmatter = {}) {
   const processor = unified().use(remarkMyst).use(remarkJupyter, { cwd }).use(remarkRehype, mystRehype).use(rehypeKatex).use(rehypeJupyter);
-  const file = { value: source, data: { astro: { frontmatter: {} } } };
+  const file = { value: source, data: { astro: { frontmatter } } };
   return toHtml(await processor.run(processor.parse(source), file));
 }
 
@@ -51,6 +51,20 @@ test('raises-exception publishes the traceback and later cells keep running', as
   assert.doesNotMatch(result, /\x1b/);
   assert.match(result, /<pre>still-running/);
   await assert.rejects(render('```{code-cell} python\nraise ValueError("untagged-test-error")\n```'), /untagged-test-error/);
+});
+
+test('skip-execution cells and execute.skip pages publish inputs without running', async () => {
+  const skipped = await render([
+    '```{code-cell} python\n:tags: [skip-execution]\n\nraise RuntimeError("skipped-cell-must-not-run")\n```',
+    '```{code-cell} python\nprint("ran-anyway")\n```',
+  ].join('\n\n'));
+  assert.match(skipped, /data-tags="skip-execution"[^>]*><div class="jupyter-static-input">[\s\S]*?skipped-cell-must-not-run[\s\S]*?<div class="jupyter-outputs"><\/div>/);
+  assert.match(skipped, /<pre>ran-anyway/);
+  for (const frontmatter of [{ execute: { skip: true } }, { skip_execution: true }]) {
+    const page = await render('```{code-cell} python\nraise RuntimeError("page-must-not-run")\n```', frontmatter);
+    assert.match(page, /page-must-not-run/);
+    assert.match(page, /<div class="jupyter-outputs"><\/div>/);
+  }
 });
 
 test('ANSI colours, bold, resets, 256-colour and truecolour codes become spans', () => {
