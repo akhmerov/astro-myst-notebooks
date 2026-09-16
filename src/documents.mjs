@@ -48,7 +48,7 @@ async function prepare(document, root) {
       if (!node.children?.length) file.fail(`Unresolved include: ${node.file}`, node.position);
       node.type = 'block';
     }
-    if (['embed', 'iframe', 'mermaid', 'myst', 'mdast', 'linkBlock', 'index'].includes(node.type)) {
+    if (['embed', 'mermaid', 'myst', 'mdast', 'linkBlock', 'index'].includes(node.type)) {
       file.fail(`MyST construct is not supported by this renderer: ${node.type}`, node.position);
     }
   });
@@ -158,7 +158,7 @@ export async function resolveDocument(source, file, { root = process.cwd(), docu
     'table', 'tableRow', 'tableCell', 'definition', 'footnoteDefinition', 'footnoteReference',
     'admonition', 'admonitionTitle', 'container', 'caption', 'captionNumber', 'legend',
     'definitionList', 'definitionTerm', 'definitionDescription', 'abbreviation',
-    'subscript', 'superscript', 'keyboard', 'span', 'outputs', 'inlineExpression', 'glossary',
+    'subscript', 'superscript', 'keyboard', 'span', 'outputs', 'inlineExpression', 'glossary', 'iframe',
   ]);
   visit(page.tree, node => {
     if (!supported.has(node.type)) page.file.fail(`MyST construct is not supported by this renderer: ${node.type}`, node.position);

@@ -190,3 +190,9 @@ jupyter-notebook { display: block; }
 .ansi-bright-cyan-bg { background: #258f8f; } .ansi-bright-white-bg { background: #a1a6b2; }
 :root[data-theme='dark'] .ansi-black-fg { color: #a1a6b2; }
 :root[data-theme='dark'] .ansi-bright-black-fg { color: #c5c1b4; }
+
+/* Embedded frames and diagrams. */
+iframe { max-width: 100%; border: 0; aspect-ratio: 16 / 9; display: block; }
+iframe.align-center { margin-inline: auto; }
+iframe.align-right { margin-inline-start: auto; }
+figure > iframe { margin-block-end: 0.5rem; }

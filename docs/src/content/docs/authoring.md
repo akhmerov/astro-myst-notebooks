@@ -104,6 +104,24 @@ example of a file-qualified equation link. Cross-page `.md` links resolve
 through the collection manifest. Local labels take precedence; ambiguous
 remote labels need a file-qualified link.
 
+## Embedded media
+
+The `iframe` directive embeds external content. A body becomes the caption of
+a numbered figure, so the frame can carry a `name` for cross-references:
+
+````markdown
+```{iframe} https://www.youtube.com/embed/aqz-KE-bpKQ
+:name: video-example
+:width: 100%
+:title: Example video
+
+A captioned video.
+```
+````
+
+The `width` option takes CSS units, `align` takes `left`, `center`, or `right`,
+and `title` labels the frame for assistive technology.
+
 ## Glossaries and terms
 
 A `glossary` directive holds a definition list. Each term becomes a link

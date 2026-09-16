@@ -55,6 +55,11 @@ export const mystRehype = {
     handlers: {
       text: sourceText,
       glossary: (h, node) => h(node, 'div', { className: ['glossary'] }, all(h, node)),
+      // The placeholder child is for static exports; HTML embeds the frame itself.
+      iframe: (h, node) => h(node, 'iframe', {
+        src: node.src, title: node.title, width: node.width, loading: 'lazy', allowFullScreen: true,
+        className: node.align ? [`align-${node.align}`] : undefined,
+      }, []),
       definitionTerm: (h, node) => h(node, 'dt', { id: node.html_id ?? node.identifier }, all(h, node)),
       inlineCode: (h, node) => h(node, 'code', [sourceText(h, node)]),
       captionNumber: (h, node) => h(node, 'span', { className: ['caption-number'] }, [{ type: 'text', value: node.children?.map(child => child.value ?? '').join('') ?? node.enumerator ?? '' }]),
