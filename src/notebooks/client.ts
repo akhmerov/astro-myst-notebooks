@@ -1,4 +1,6 @@
 import { renderPlots } from './plots.js';
+import { renderDiagrams } from './diagrams.js';
 
-renderPlots();
-document.addEventListener('astro:page-load', () => renderPlots());
+const render = () => { renderPlots(); void renderDiagrams(); };
+render();
+document.addEventListener('astro:page-load', render);

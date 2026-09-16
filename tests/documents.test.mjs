@@ -73,7 +73,7 @@ test('glossary terms resolve locally and across pages', () => fixture(async root
 
 test('unresolved semantics, missing/cyclic includes and ambiguous labels fail explicitly', () => fixture(async root => {
   const path = join(root, 'main.md');
-  for (const source of ['{eq}`missing`', '[](#missing)', '{cite:p}`missing`', '```mermaid\ngraph LR; A-->B;\n```', '```{include} absent.md\n```', '```{embed} other.md\n```']) {
+  for (const source of ['{eq}`missing`', '[](#missing)', '{cite:p}`missing`', '```{include} absent.md\n```', '```{embed} other.md\n```']) {
     await assert.rejects(resolveDocument(source, {path}, {root}));
   }
   await writeFile(path, '```{include} main.md\n```');

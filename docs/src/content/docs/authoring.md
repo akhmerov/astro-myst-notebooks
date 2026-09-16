@@ -104,6 +104,27 @@ example of a file-qualified equation link. Cross-page `.md` links resolve
 through the collection manifest. Local labels take precedence; ambiguous
 remote labels need a file-qualified link.
 
+## Diagrams
+
+The `mermaid` directive, or a fenced block with the `mermaid` language,
+describes a diagram that is drawn in the reader's browser and follows the
+site theme:
+
+````markdown
+```{mermaid}
+flowchart LR
+  source[MyST source] --> kernel[Jupyter kernel] --> page[Static page]
+```
+````
+
+```{mermaid}
+flowchart LR
+  source[MyST source] --> kernel[Jupyter kernel] --> page[Static page]
+  page --> browser[Browser notebook]
+```
+
+Without JavaScript the diagram source remains visible as text.
+
 ## Embedded media
 
 The `iframe` directive embeds external content. A body becomes the caption of

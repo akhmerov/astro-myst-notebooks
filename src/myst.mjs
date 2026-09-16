@@ -55,6 +55,8 @@ export const mystRehype = {
     handlers: {
       text: sourceText,
       glossary: (h, node) => h(node, 'div', { className: ['glossary'] }, all(h, node)),
+      // Diagrams render in the browser (see notebooks/diagrams.ts); the source stays readable without JS.
+      mermaid: (h, node) => h(node, 'pre', { className: ['mermaid'] }, [{ type: 'text', value: node.value }]),
       // The placeholder child is for static exports; HTML embeds the frame itself.
       iframe: (h, node) => h(node, 'iframe', {
         src: node.src, title: node.title, width: node.width, loading: 'lazy', allowFullScreen: true,

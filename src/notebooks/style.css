@@ -196,3 +196,6 @@ iframe { max-width: 100%; border: 0; aspect-ratio: 16 / 9; display: block; }
 iframe.align-center { margin-inline: auto; }
 iframe.align-right { margin-inline-start: auto; }
 figure > iframe { margin-block-end: 0.5rem; }
+pre.mermaid { background: none; border: 0; padding: 0; text-align: center; }
+pre.mermaid[data-processed] { white-space: normal; }
+pre.mermaid svg { max-width: 100%; height: auto; }

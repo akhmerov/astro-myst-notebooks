@@ -41,6 +41,14 @@ test('the documentation renders real Jupyter results and includes hidden setup',
   assert.ok(nodes.some(node => node.properties.id === 'triangular-sum'));
 });
 
+test('layout constructs render on the authoring page', () => {
+  const nodes = elements(pages.get('authoring'));
+  const diagram = nodes.find(node => node.tagName === 'pre' && node.properties.className?.includes('mermaid'));
+  assert.match(text(diagram), /flowchart LR/);
+  assert.ok(nodes.some(node => node.tagName === 'dt' && node.properties.id === 'term-kernel'));
+  assert.ok(nodes.some(node => node.tagName === 'a' && node.properties.href === '#term-kernel'));
+});
+
 test('includes retain their file identity and are excluded from the page collection', async () => {
   const routes = JSON.parse(await readFile(new URL('../node_modules/.astro/notebooks/documents.json', import.meta.url), 'utf8'));
   assert.equal(routes.length, names.length);

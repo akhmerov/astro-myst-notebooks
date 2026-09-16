@@ -19,3 +19,9 @@ test('iframes render with their attributes and captions become figures', async (
   assert.match(captioned, /A caption\./);
   assert.match(captioned, /href="#frame"/);
 });
+
+test('mermaid directives and fences publish their source for browser rendering', async () => {
+  for (const source of ['```{mermaid}\ngraph LR; A-->B;\n```', '```mermaid\ngraph LR; A-->B;\n```']) {
+    assert.match(await render(source), /<pre class="mermaid">graph LR; A-->B;<\/pre>/);
+  }
+});
