@@ -2,6 +2,7 @@ import { mystParse } from 'myst-parser';
 import { autodocDirective } from './autodoc.mjs';
 import { mystToHast } from 'myst-to-html';
 import { visit } from 'unist-util-visit';
+import { createRequire } from 'node:module';
 
 import { autolinkRole } from './references.mjs';
 import { resolveDocument } from './documents.mjs';
@@ -42,6 +43,10 @@ export const remarkMyst = function (options = {}) {
   };
 };
 
+// myst-to-html renders with its own mdast-util-to-hast major; child rendering
+// must use that version's `all`, not Astro's.
+const { all } = await import(createRequire(import.meta.resolve('myst-to-html')).resolve('mdast-util-to-hast'));
+
 // Render the resolved MyST tree; unsupported semantics fail before export.
 // Astro's highlighting, heading collection, and rehype plugins run afterwards.
 export const mystRehype = {
@@ -49,6 +54,8 @@ export const mystRehype = {
     allowDangerousHtml: true,
     handlers: {
       text: sourceText,
+      glossary: (h, node) => h(node, 'div', { className: ['glossary'] }, all(h, node)),
+      definitionTerm: (h, node) => h(node, 'dt', { id: node.html_id ?? node.identifier }, all(h, node)),
       inlineCode: (h, node) => h(node, 'code', [sourceText(h, node)]),
       captionNumber: (h, node) => h(node, 'span', { className: ['caption-number'] }, [{ type: 'text', value: node.children?.map(child => child.value ?? '').join('') ?? node.enumerator ?? '' }]),
       // Use standard HAST className arrays so rehype-katex can render the math.

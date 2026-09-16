@@ -8,7 +8,7 @@ import { visit } from 'unist-util-visit';
 import {
   getFrontmatter, includeDirectiveTransform, basicTransformations,
   ReferenceState, MultiPageReferenceResolver, enumerateTargetsTransform,
-  resolveLinksAndCitationsTransform, resolveReferencesTransform,
+  resolveLinksAndCitationsTransform, resolveReferencesTransform, glossaryTransform,
 } from 'myst-transforms';
 import { getCitations } from 'citation-js-utils';
 import { autolinkRole } from './references.mjs';
@@ -48,11 +48,13 @@ async function prepare(document, root) {
       if (!node.children?.length) file.fail(`Unresolved include: ${node.file}`, node.position);
       node.type = 'block';
     }
-    if (['embed', 'iframe', 'mermaid', 'myst', 'mdast', 'linkBlock', 'index', 'glossary'].includes(node.type)) {
+    if (['embed', 'iframe', 'mermaid', 'myst', 'mdast', 'linkBlock', 'index'].includes(node.type)) {
       file.fail(`MyST construct is not supported by this renderer: ${node.type}`, node.position);
     }
   });
   basicTransformations(tree, file, { numbering: { heading_1: false } });
+  // Glossary terms become `term-*` targets for the {term} role, including across pages.
+  glossaryTransform(tree, file);
   // Resolve bibliography with MyST's existing Citation.js adapter.
   const bibs = frontmatter.bibliography ? [frontmatter.bibliography].flat() : [];
   const citations = {};
@@ -156,7 +158,7 @@ export async function resolveDocument(source, file, { root = process.cwd(), docu
     'table', 'tableRow', 'tableCell', 'definition', 'footnoteDefinition', 'footnoteReference',
     'admonition', 'admonitionTitle', 'container', 'caption', 'captionNumber', 'legend',
     'definitionList', 'definitionTerm', 'definitionDescription', 'abbreviation',
-    'subscript', 'superscript', 'keyboard', 'span', 'outputs', 'inlineExpression',
+    'subscript', 'superscript', 'keyboard', 'span', 'outputs', 'inlineExpression', 'glossary',
   ]);
   visit(page.tree, node => {
     if (!supported.has(node.type)) page.file.fail(`MyST construct is not supported by this renderer: ${node.type}`, node.position);

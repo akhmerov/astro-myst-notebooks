@@ -54,6 +54,23 @@ test('MyST includes, citations, numbered targets and cross-page routes resolve t
   assert.ok(nodes(updated, 'text').some(node => node.value === 'updated phrase'));
 }));
 
+test('glossary terms resolve locally and across pages', () => fixture(async root => {
+  const glossary = '---\ntitle: Terms\n---\n\n```{glossary}\nKernel\n: The executing process.\n```\n\nA {term}`kernel` and {term}`the kernel <Kernel>`.';
+  const other = '---\ntitle: Other\n---\n\nRemote {term}`Kernel`.';
+  await writeFile(join(root, 'terms.md'), glossary);
+  await writeFile(join(root, 'other.md'), other);
+  const manifest = join(root, 'documents.json');
+  await writeFile(manifest, JSON.stringify([{ path: join(root, 'terms.md'), url: '/terms/' }, { path: join(root, 'other.md'), url: '/other/' }]));
+  const tree = await resolveDocument(glossary, { path: join(root, 'terms.md') }, { root, documents: manifest });
+  assert.equal(nodes(tree, 'glossary').length, 1);
+  assert.equal(nodes(tree, 'definitionTerm')[0].html_id, 'term-kernel');
+  const links = nodes(tree, 'link').filter(node => node.url === '#term-kernel');
+  assert.deepEqual(links.map(link => nodes(link, 'text').map(node => node.value).join('')), ['kernel', 'the kernel']);
+  const remote = await resolveDocument(other, { path: join(root, 'other.md') }, { root, documents: manifest });
+  assert.ok(nodes(remote, 'link').some(node => node.url === '/terms/#term-kernel'));
+  await assert.rejects(resolveDocument('{term}`missing`', { path: join(root, 'other.md') }, { root }), /Unresolved reference/);
+}));
+
 test('unresolved semantics, missing/cyclic includes and ambiguous labels fail explicitly', () => fixture(async root => {
   const path = join(root, 'main.md');
   for (const source of ['{eq}`missing`', '[](#missing)', '{cite:p}`missing`', '```mermaid\ngraph LR; A-->B;\n```', '```{include} absent.md\n```', '```{embed} other.md\n```']) {

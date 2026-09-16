@@ -74,6 +74,9 @@
     "mdast-util-math": "^3.0.0",
     "micromark-extension-gfm": "^3.0.0",
     "micromark-extension-math": "^3.1.0",
+    "myst-ext-card": "^1.0.9",
+    "myst-ext-grid": "^1.1.0",
+    "myst-ext-tabs": "^1.0.9",
     "myst-parser": "^1.7.3",
     "myst-roles": "^1.7.3",
     "myst-to-html": "^1.7.3",
@@ -135,6 +138,7 @@
     "@jupyterlite/xeus-extension": "^5.1.0",
     "@lumino/coreutils": "^2.2.3",
     "@lumino/widgets": "^2.9.0",
+    "mermaid": "^12.0.0",
     "thebe": "^0.9.3",
     "thebe-core": "^0.5.0",
     "plotly.js-dist-min": "^4.1.0",
@@ -159,6 +163,9 @@
     "access": "public"
   },
   "bundleDependencies": [
+    "myst-ext-card",
+    "myst-ext-grid",
+    "myst-ext-tabs",
     "myst-parser",
     "myst-roles",
     "myst-to-html",

@@ -104,6 +104,31 @@ example of a file-qualified equation link. Cross-page `.md` links resolve
 through the collection manifest. Local labels take precedence; ambiguous
 remote labels need a file-qualified link.
 
+## Glossaries and terms
+
+A `glossary` directive holds a definition list. Each term becomes a link
+target for the `term` role on any page of the collection:
+
+````markdown
+```{glossary}
+Kernel
+: The process that executes a page's code cells.
+```
+
+Every page starts a fresh {term}`kernel`; see {term}`the kernel <Kernel>`.
+````
+
+```{glossary}
+Kernel
+: The process that executes a page's code cells and inline expressions.
+
+Xeus
+: The C++ Jupyter kernel framework behind browser execution.
+```
+
+Every page starts a fresh {term}`kernel`, and the browser uses {term}`Xeus`.
+Unknown terms fail the build like any other unresolved reference.
+
 ## Include another source file
 
 ````markdown
