@@ -2,6 +2,7 @@ import { Inventory } from 'intersphinx';
 import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
 import { documentTargets } from './documents.mjs';
+import { loadSource } from './notebook-source.mjs';
 
 /** Merge API and document inventories after the content collection is rendered. */
 export async function exportInventory({ api, documents, root, destination, base = '/', labels = {} }: {
@@ -14,7 +15,7 @@ export async function exportInventory({ api, documents, root, destination, base 
   const seen = new Map<string, string>();
   for (const route of routes) {
     inventory.setEntry({ type: 'std:doc', name: route.name, display: route.title, location: route.url });
-    for (const target of await documentTargets(await readFile(route.path, 'utf8'), route.path, fileURLToPath(root))) {
+    for (const target of await documentTargets(await loadSource(route.path), route.path, fileURLToPath(root))) {
       const location = `${route.url}#${target.id}`;
       if (seen.has(target.name) && seen.get(target.name) !== location) throw new Error(`Ambiguous exported document label: ${target.name}`);
       seen.set(target.name, location);

@@ -1,4 +1,4 @@
-import type { AstroIntegration } from 'astro';
+import type { AstroConfig, AstroIntegration, ContentEntryType } from 'astro';
 import { unified } from '@astrojs/markdown-remark';
 import rehypeKatex from 'rehype-katex';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +12,7 @@ import { checkEnvironment, remarkJupyter } from '../jupyter.mjs';
 import { rehypeJupyter } from '../mime.mjs';
 import { notebookPaths, sitePrefix } from '../paths.js';
 import { buildEnvironment } from './build-environment.js';
+import { notebookEntryType } from './entry-type.js';
 import type { BrowserOptions, ExecutionOptions, InteractiveOptions } from './types.js';
 
 export interface Options {
@@ -30,11 +31,20 @@ type CopyTarget = Parameters<typeof viteStaticCopy>[0]['targets'][number];
 
 /** MyST parsing, build execution, and optional Xeus notebooks as one Astro integration. */
 export default function notebooks(options: Options = {}): AstroIntegration {
+  let finalConfig: AstroConfig | undefined;
   return {
     name: 'astro-myst-notebooks',
     hooks: {
-      'astro:config:setup': async ({ config, updateConfig, injectScript, command, logger }) => {
+      'astro:config:done': ({ config }) => { finalConfig = config; },
+      'astro:config:setup': async (setup) => {
+        const { config, updateConfig, injectScript, command, logger } = setup;
         const paths = notebookPaths(config);
+        // Notebooks render through the same processor once every integration has configured it.
+        // Astro defines addContentEntryType as a non-enumerable hook property.
+        (setup as unknown as { addContentEntryType(type: ContentEntryType): void }).addContentEntryType(notebookEntryType(() => {
+          if (!finalConfig) throw new Error('Notebook rendering requested before the Astro config was finalized');
+          return finalConfig;
+        }));
         // Preserve private dependency resolutions when Vite emits the SSR build.
         if (command === 'build') {
           const resolve = { noExternal: bundled };

@@ -15,6 +15,7 @@ export default defineConfig({
         { label: 'Set up a site', slug: 'setup' },
         { label: 'Executable walkthrough', slug: 'walkthrough' },
         { label: 'Author MyST', slug: 'authoring' },
+        { label: 'Notebook source', slug: 'notebook' },
         { label: 'Browser execution', slug: 'browser' },
         { label: 'Configuration and API', slug: 'reference' },
         { label: 'Development', slug: 'development' },

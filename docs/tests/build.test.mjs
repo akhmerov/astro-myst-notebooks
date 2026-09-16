@@ -6,7 +6,7 @@ import { visit } from 'unist-util-visit';
 
 const output = new URL('../dist/', import.meta.url);
 const base = (process.env.DOCS_BASE ?? '/').replace(/\/$/, '');
-const names = ['', 'setup', 'walkthrough', 'authoring', 'browser', 'reference', 'development'];
+const names = ['', 'setup', 'walkthrough', 'authoring', 'notebook', 'browser', 'reference', 'development'];
 const pages = new Map(await Promise.all(names.map(async name => {
   const html = await readFile(new URL(`${name ? name + '/' : ''}index.html`, output), 'utf8');
   return [name, fromHtml(html)];
@@ -60,6 +60,27 @@ test('layout constructs render on the authoring page', () => {
   assert.deepEqual(tabs.map(node => node.properties.ariaSelected), ['true', 'false']);
   assert.ok(nodes.some(node => node.tagName === 'dt' && node.properties.id === 'term-kernel'));
   assert.ok(nodes.some(node => node.tagName === 'a' && node.properties.href === '#term-kernel'));
+});
+
+test('a Jupyter notebook renders and executes like a MyST page', async () => {
+  const nodes = elements(pages.get('notebook'));
+  assert.ok(nodes.some(node => node.tagName === 'h1' && text(node) === 'Notebook source'));
+  const cells = nodes.filter(node => node.properties.className?.includes('jupyter-cell'));
+  assert.equal(cells.length, 2);
+  assert.equal(cells[0].properties.dataTags, 'hide-output');
+  const outputs = nodes.filter(node => node.properties.className?.includes('jupyter-output'));
+  assert.deepEqual(outputs.map(text), ['5', '55']);
+  assert.doesNotMatch(text(pages.get('notebook')), /Raw cells are not published/);
+  assert.ok(nodes.some(node => node.tagName === 'a' && node.properties.href === `${base}/walkthrough/#triangular-sum`));
+  const span = nodes.find(node => node.properties.dataSourceLocation && text(node) === 'notebook.ipynb');
+  const origin = JSON.parse(span.properties.dataSourceLocation);
+  assert.equal(origin.file, 'docs/src/content/docs/notebook.ipynb');
+  assert.equal(origin.representation, 'myst');
+  const { notebookToMyst } = await import('../../dist/source-loader.js');
+  const source = notebookToMyst(JSON.parse(await readFile(new URL(`../../${origin.file}`, import.meta.url), 'utf8')));
+  assert.equal(source.slice(origin.start, origin.end), 'notebook.ipynb');
+  const routes = JSON.parse(await readFile(new URL('../node_modules/.astro/notebooks/documents.json', import.meta.url), 'utf8'));
+  assert.ok(routes.some(route => route.path.endsWith('notebook.ipynb') && route.url === `${base}/notebook/`));
 });
 
 test('includes retain their file identity and are excluded from the page collection', async () => {

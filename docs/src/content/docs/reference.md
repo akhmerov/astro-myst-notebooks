@@ -76,13 +76,16 @@ sourceLoader({
 });
 ```
 
-`base` defaults to `src/content/docs/`, `pattern` to `**/[^_]*.md`, and
-`documents` to the integration's managed cache path. `sources` supplies route IDs and
-titles without copying or rewriting authored files. Its keys are paths relative
-to `base` and are included in the glob patterns automatically. `generateId`
-accepts Astro's glob-loader callback; explicit `sources` IDs take precedence.
+`base` defaults to `src/content/docs/`, `pattern` to `**/[^_]*.{md,ipynb}`, and
+`documents` to the integration's managed cache path. Jupyter notebooks are
+registered as a content entry type by the integration and rendered through the
+same MyST processor; `notebookToMyst()` exposes their text representation.
+`sources` supplies route IDs and titles without copying or rewriting authored
+files. Its keys are paths relative to `base` and are included in the glob
+patterns automatically. `generateId` accepts Astro's glob-loader callback;
+explicit `sources` IDs take precedence.
 
-The loader records Markdown routes and updates the manifest when Astro adds,
+The loader records Markdown and notebook routes and updates the manifest when Astro adds,
 changes, or removes collection entries. Nested `index.md` pages resolve to their
 containing directory. The deployment base and trailing-slash setting are applied
 to the recorded URLs.

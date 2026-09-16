@@ -1,5 +1,7 @@
 export interface SourceLocation {
   version: number; file: string; revision: string | null; digest: string; encoding: 'utf-16';
+  /** Present for .ipynb sources: offsets index the notebook's MyST text, see `notebookToMyst`. */
+  representation?: 'myst';
   start: number; end: number; kind: 'exact' | 'range';
   position?: { start: { line: number; column: number; offset: number }; end: { line: number; column: number; offset: number } };
 }

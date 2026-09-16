@@ -33,8 +33,10 @@ export function attachOrigins(tree, source, path, root, fullSource = source) {
     const before = fullSource.slice(0, offset).split('\n');
     return { line: before.length, column: before.at(-1).length + 1, offset };
   };
+  // Notebook offsets index the deterministic MyST text of the .ipynb file, not its JSON.
   const identity = { version: 1, file: relative(root, path).replaceAll('\\', '/'), revision: revision(root),
-    digest: createHash('sha256').update(fullSource).digest('hex'), encoding: 'utf-16' };
+    digest: createHash('sha256').update(fullSource).digest('hex'), encoding: 'utf-16',
+    ...(path.endsWith('.ipynb') ? { representation: 'myst' } : {}) };
   const origin = (start, end, kind = 'range') => ({
     ...identity,
     start: base + start, end: base + end, kind,

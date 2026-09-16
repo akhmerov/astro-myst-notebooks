@@ -7,6 +7,21 @@ The integration uses `myst-parser` for syntax and `myst-transforms` for document
 semantics. It supports a subset of MyST; unknown roles, unsupported constructs,
 missing references, and cyclic includes fail explicitly.
 
+## Jupyter notebooks as sources
+
+An `.ipynb` file in the content directory is a page. Its Markdown cells become
+prose, its code cells become executable cells with their tags, and raw cells
+are not published. Page frontmatter is a YAML block at the top of the first
+Markdown cell; without a `title` there, the first heading is used. Stored
+outputs in the file are ignored: the build executes the notebook from its
+own directory, like a page with `kernelspec` frontmatter. The
+[notebook page](notebook.ipynb) of this site is such a file.
+
+Links to `other.ipynb` resolve like links to `.md` pages. Source maps for
+notebook text carry `representation: "myst"`: offsets index the notebook's
+Jupytext MyST text, which `notebookToMyst()` from
+`astro-myst-notebooks/loader` regenerates from the file.
+
 ## Executable cells
 
 A MyST `code-cell` directive executes Python. An ordinary Python fence is
@@ -330,6 +345,7 @@ text ranges. Inspect each range's `origin` before attaching a comment:
 | `revision` | Git revision, or `null` outside a Git checkout |
 | `digest` | SHA-256 of the full source text |
 | `encoding` | `utf-16`, matching JavaScript and DOM offsets |
+| `representation` | `myst` for `.ipynb` sources, whose offsets index the generated MyST text |
 | `start`, `end` | Source offsets, with an exclusive end |
 | `kind` | `exact` text correspondence or a containing `range` |
 

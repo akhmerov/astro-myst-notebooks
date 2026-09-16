@@ -12,6 +12,7 @@ import {
 } from 'myst-transforms';
 import { getCitations } from 'citation-js-utils';
 import { attachOrigins } from './source-map.mjs';
+import { loadSource } from './notebook-source.mjs';
 
 function diagnostics(file) {
   const errors = file.messages.filter(message => message.fatal ||
@@ -49,7 +50,7 @@ async function prepare(document, root) {
     if (!origin || origin.file === own) return;
     for (const key of node.type === 'image' ? ['url'] : node.type === 'link' ? ['url'] : node.type === 'iframe' ? ['src'] : []) {
       const value = node[key];
-      if (typeof value !== 'string' || /^(\/|#|[a-z][a-z0-9+.-]*:)/i.test(value) || /\.md(#|$)/.test(value)) continue;
+      if (typeof value !== 'string' || /^(\/|#|[a-z][a-z0-9+.-]*:)/i.test(value) || /\.(md|ipynb)(#|$)/.test(value)) continue;
       const [target, hash] = value.split('#');
       const rebased = relative(dirname(file.path), resolve(root, dirname(origin.file), target)).replaceAll('\\', '/');
       node[key] = `${rebased.startsWith('.') ? '' : './'}${rebased}${hash !== undefined ? `#${hash}` : ''}`;
@@ -119,10 +120,11 @@ export async function resolveDocument(source, file, { root = process.cwd(), docu
     catch (error) { if (error.code !== 'ENOENT') throw error; }
   }
   const path = resolve(file.path ?? 'document.md');
+  // Notebook pages arrive as MyST text; the manifest and links use the .ipynb path.
   const registered = routes.some(entry => entry.path === path);
   const entries = registered ? routes : [{ path, url: undefined }];
   const pages = await Promise.all(entries.map(async entry => {
-    const content = registered ? await readFile(entry.path, 'utf8') : source;
+    const content = registered ? await loadSource(entry.path) : source;
     return { ...parseDocument(content, entry.path, root), url: entry.url };
   }));
   await Promise.all(pages.map(page => prepare(page, root)));
@@ -145,7 +147,7 @@ export async function resolveDocument(source, file, { root = process.cwd(), docu
   visit(page.tree, ['link', 'card'], node => {
     // Translate file links using the collection's actual routes before resolving.
     const [name, label] = (node.url ?? '').split('#');
-    if (!name.endsWith('.md') || name.includes('://')) return;
+    if (!/\.(md|ipynb)$/.test(name) || name.includes('://')) return;
     const origin = node.data?.origin?.file ? resolve(root, node.data.origin.file) : path;
     const target = resolve(dirname(origin), name);
     // Included project files may link to another included file, or to a route
