@@ -25,3 +25,12 @@ test('mermaid directives and fences publish their source for browser rendering',
     assert.match(await render(source), /<pre class="mermaid">graph LR; A-->B;<\/pre>/);
   }
 });
+
+test('tab sets render accessible tabs with sync keys and a selected item', async () => {
+  const source = ['::::{tab-set}', ':::{tab-item} One', ':sync: a', 'First.', ':::', ':::{tab-item} Two', ':sync: b', ':selected:', 'Second.', ':::', '::::'].join('\n');
+  const html = await render(source + '\n\n' + source);
+  assert.match(html, /<div class="tab-set" data-tab-set=""><div class="tab-list" role="tablist"><button type="button" role="tab" id="tabs-1-tab-1" aria-controls="tabs-1-panel-1" aria-selected="false" tabindex="-1" data-sync="a">One<\/button><button [^>]*id="tabs-1-tab-2"[^>]*aria-selected="true" tabindex="0" data-sync="b">Two<\/button><\/div>/);
+  assert.match(html, /<div class="tab-panel" role="tabpanel" id="tabs-1-panel-1" aria-labelledby="tabs-1-tab-1" hidden>/);
+  assert.match(html, /<div class="tab-panel" role="tabpanel" id="tabs-1-panel-2" aria-labelledby="tabs-1-tab-2"><p>/);
+  assert.match(html, /id="tabs-2-tab-1"/);
+});

@@ -1,10 +1,9 @@
 import { mystParse } from 'myst-parser';
-import { autodocDirective } from './autodoc.mjs';
+import { directives, roles } from './syntax.mjs';
 import { mystToHast } from 'myst-to-html';
 import { visit } from 'unist-util-visit';
 import { createRequire } from 'node:module';
 
-import { autolinkRole } from './references.mjs';
 import { resolveDocument } from './documents.mjs';
 import { sourceText } from './source-map.mjs';
 
@@ -13,7 +12,7 @@ export const remarkMyst = function (options = {}) {
   // MyST exports a unified v10 plugin; Astro uses unified v11's `parser` slot.
   // Parsing, including directive options and cell tags, stays in myst-parser.
   this.parser = (source, file) => {
-    const tree = mystParse(source, { vfile: file, roles: [autolinkRole], directives: [autodocDirective] });
+    const tree = mystParse(source, { vfile: file, roles, directives });
     const errors = file.messages.filter(message => message.fatal === true);
     if (errors.length) file.fail(errors.map(message => message.reason).join('\n'));
     tree.data = { ...tree.data, source };
@@ -50,10 +49,28 @@ const { all } = await import(createRequire(import.meta.resolve('myst-to-html')).
 // Render the resolved MyST tree; unsupported semantics fail before export.
 // Astro's highlighting, heading collection, and rehype plugins run afterwards.
 export const mystRehype = {
-  handlers: { root: (state, tree) => mystToHast({
+  handlers: { root: (state, tree) => {
+    // Deterministic per-page ids for generated controls, stable across builds.
+    let tabSets = 0;
+    return mystToHast({
     allowDangerousHtml: true,
     handlers: {
       text: sourceText,
+      tabSet: (h, node) => {
+        const id = `tabs-${++tabSets}`;
+        const items = node.children.filter(child => child.type === 'tabItem');
+        const selected = Math.max(0, items.findIndex(item => item.selected));
+        return h(node, 'div', { className: ['tab-set'], dataTabSet: '', id: node.html_id ?? node.identifier }, [
+          h(node, 'div', { className: ['tab-list'], role: 'tablist' }, items.map((item, index) => h(item, 'button', {
+            type: 'button', role: 'tab', id: `${id}-tab-${index + 1}`, ariaControls: `${id}-panel-${index + 1}`,
+            ariaSelected: String(index === selected), tabIndex: index === selected ? 0 : -1, dataSync: item.sync,
+          }, [{ type: 'text', value: item.title }]))),
+          ...items.map((item, index) => h(item, 'div', {
+            className: ['tab-panel'], role: 'tabpanel', id: `${id}-panel-${index + 1}`, ariaLabelledBy: `${id}-tab-${index + 1}`,
+            hidden: index !== selected,
+          }, all(h, item))),
+        ]);
+      },
       glossary: (h, node) => h(node, 'div', { className: ['glossary'] }, all(h, node)),
       // Diagrams render in the browser (see notebooks/diagrams.ts); the source stays readable without JS.
       mermaid: (h, node) => h(node, 'pre', { className: ['mermaid'] }, [{ type: 'text', value: node.value }]),
@@ -73,7 +90,8 @@ export const mystRehype = {
         { type: 'text', value: node.value },
       ]),
     },
-  })(tree) },
+    })(tree);
+  } },
 };
 
 

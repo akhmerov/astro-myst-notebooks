@@ -199,3 +199,15 @@ figure > iframe { margin-block-end: 0.5rem; }
 pre.mermaid { background: none; border: 0; padding: 0; text-align: center; }
 pre.mermaid[data-processed] { white-space: normal; }
 pre.mermaid svg { max-width: 100%; height: auto; }
+
+/* Tab sets. */
+.tab-set { margin-block: 1rem; border: 1px solid var(--sl-color-hairline-light); border-radius: 0.5rem; }
+.tab-set > .tab-list { display: flex; flex-wrap: wrap; border-bottom: 1px solid var(--sl-color-hairline-light); }
+.tab-set > .tab-list > [role='tab'] {
+  margin: 0 0 -1px; padding: 0.5rem 1rem; border: 0; border-bottom: 2px solid transparent;
+  background: none; color: var(--sl-color-gray-2); cursor: pointer; font: inherit; font-weight: 500;
+}
+.tab-set > .tab-list > [role='tab'][aria-selected='true'] { color: var(--sl-color-text-accent); border-bottom-color: var(--sl-color-text-accent); }
+.tab-set > .tab-list > [role='tab']:focus-visible { outline: 2px solid var(--sl-color-accent-high); outline-offset: -2px; }
+.tab-set > .tab-panel { padding: 0 1rem 1rem; }
+.tab-set > .tab-panel[hidden] { display: none; }

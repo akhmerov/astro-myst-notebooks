@@ -45,6 +45,9 @@ test('layout constructs render on the authoring page', () => {
   const nodes = elements(pages.get('authoring'));
   const diagram = nodes.find(node => node.tagName === 'pre' && node.properties.className?.includes('mermaid'));
   assert.match(text(diagram), /flowchart LR/);
+  const tabs = nodes.filter(node => node.properties.role === 'tab');
+  assert.deepEqual(tabs.map(text), ['Pixi', 'npm']);
+  assert.deepEqual(tabs.map(node => node.properties.ariaSelected), ['true', 'false']);
   assert.ok(nodes.some(node => node.tagName === 'dt' && node.properties.id === 'term-kernel'));
   assert.ok(nodes.some(node => node.tagName === 'a' && node.properties.href === '#term-kernel'));
 });

@@ -104,6 +104,50 @@ example of a file-qualified equation link. Cross-page `.md` links resolve
 through the collection manifest. Local labels take precedence; ambiguous
 remote labels need a file-qualified link.
 
+## Tabs
+
+A `tab-set` holds `tab-item` directives. Items with the same `sync` key switch
+together across the page, and `selected` chooses the initial tab:
+
+````markdown
+::::{tab-set}
+:::{tab-item} Pixi
+:sync: pixi
+
+```sh
+pixi run -e docs docs
+```
+:::
+:::{tab-item} npm
+:sync: npm
+:selected:
+
+```sh
+npm run docs:build
+```
+:::
+::::
+````
+
+::::{tab-set}
+:::{tab-item} Pixi
+:sync: pixi
+
+```sh
+pixi run -e docs docs
+```
+:::
+:::{tab-item} npm
+:sync: npm
+
+```sh
+npm run docs:build
+```
+:::
+::::
+
+Every panel is present in the page, so search and printing see all tabs.
+
 ## Diagrams
 
 The `mermaid` directive, or a fenced block with the `mermaid` language,

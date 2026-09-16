@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mystParse } from 'myst-parser';
-import { autodocDirective } from './autodoc.mjs';
+import { directives, roles } from './syntax.mjs';
 import { VFile } from 'vfile';
 import { visit } from 'unist-util-visit';
 import {
@@ -11,7 +11,6 @@ import {
   resolveLinksAndCitationsTransform, resolveReferencesTransform, glossaryTransform,
 } from 'myst-transforms';
 import { getCitations } from 'citation-js-utils';
-import { autolinkRole } from './references.mjs';
 import { attachOrigins } from './source-map.mjs';
 
 function diagnostics(file) {
@@ -22,7 +21,7 @@ function diagnostics(file) {
 
 export function parseDocument(source, path, root, fullSource = source, keepTitleNode = false) {
   const file = new VFile({ path, value: source });
-  const tree = mystParse(source, { vfile: file, roles: [autolinkRole], directives: [autodocDirective], extensions: { smartquotes: false } });
+  const tree = mystParse(source, { vfile: file, roles, directives, extensions: { smartquotes: false } });
   diagnostics(file);
   attachOrigins(tree, source, path, root, fullSource);
   const { frontmatter, identifiers } = getFrontmatter(file, tree, { keepTitleNode });
@@ -158,7 +157,7 @@ export async function resolveDocument(source, file, { root = process.cwd(), docu
     'table', 'tableRow', 'tableCell', 'definition', 'footnoteDefinition', 'footnoteReference',
     'admonition', 'admonitionTitle', 'container', 'caption', 'captionNumber', 'legend',
     'definitionList', 'definitionTerm', 'definitionDescription', 'abbreviation',
-    'subscript', 'superscript', 'keyboard', 'span', 'outputs', 'inlineExpression', 'glossary', 'iframe', 'mermaid',
+    'subscript', 'superscript', 'keyboard', 'span', 'outputs', 'inlineExpression', 'glossary', 'iframe', 'mermaid', 'tabSet', 'tabItem',
   ]);
   visit(page.tree, node => {
     if (!supported.has(node.type)) page.file.fail(`MyST construct is not supported by this renderer: ${node.type}`, node.position);
