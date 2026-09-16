@@ -103,3 +103,25 @@ test('a failed start retries interactivity and navigation clears the title contr
   await expect(controls.getByRole('button', { name: 'Enable interactivity', exact: true })).toBeEnabled();
   await expect(controls).toHaveCount(1);
 });
+
+test('layout constructs behave in the browser: tabs switch and Mermaid draws with the theme', async ({ page }) => {
+  await page.goto('authoring/');
+  const tabs = page.locator('[data-tab-set]').first();
+  const pixiPanel = tabs.locator('[role="tabpanel"]').first();
+  const npmPanel = tabs.locator('[role="tabpanel"]').nth(1);
+  await expect(pixiPanel).toBeVisible();
+  await expect(npmPanel).toBeHidden();
+  await tabs.getByRole('tab', { name: 'npm' }).click();
+  await expect(npmPanel).toBeVisible();
+  await expect(pixiPanel).toBeHidden();
+  await expect(tabs.getByRole('tab', { name: 'npm' })).toHaveAttribute('aria-selected', 'true');
+  await tabs.getByRole('tab', { name: 'npm' }).press('ArrowLeft');
+  await expect(pixiPanel).toBeVisible();
+  const diagram = page.locator('pre.mermaid[data-processed]');
+  await expect(diagram.locator('svg')).toHaveCount(1, { timeout: 30000 });
+  await expect(diagram).toContainText('Jupyter kernel');
+  const before = await diagram.locator('svg').getAttribute('id');
+  await page.evaluate(() => { document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; });
+  await expect.poll(async () => diagram.locator('svg').getAttribute('id'), { timeout: 30000 }).not.toBe(before);
+  await expect(page.getByRole('link', { name: /Executable walkthrough/ }).and(page.locator('a.card'))).toHaveAttribute('href', /walkthrough\/$/);
+});
