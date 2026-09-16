@@ -101,7 +101,8 @@ export function remarkJupyter({ interactive = false, ...options } = {}) {
           ],
         });
         if (!flags.has('hide-output')) {
-          for (const bundle of notebook.cells[i].outputs) replacement.push({
+          const outputs = notebook.cells[i].outputs.filter(bundle => bundle.output_type !== 'stream' || !flags.has(`remove-${bundle.name}`));
+          for (const bundle of outputs) replacement.push({
             type: 'jupyterOutput', data: { hName: 'jupyter-output', hProperties: { bundle } }, children: [],
           });
         }

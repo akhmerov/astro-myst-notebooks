@@ -45,6 +45,7 @@ print("The code is collapsible; this output stays visible")
 | `hide-input` | Put the input in a “Show code” disclosure |
 | `remove-input` | Omit the displayed input |
 | `hide-output` or `remove-output` | Omit the output |
+| `remove-stdout` or `remove-stderr` | Omit one stream while keeping other outputs |
 | `hide-cell` or `remove-cell` | Hide the entire cell |
 | `raises-exception` | Expect an error; publish the traceback instead of failing the build |
 

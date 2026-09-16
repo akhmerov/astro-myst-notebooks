@@ -70,6 +70,11 @@ test('plain pages do not execute; hidden cells still share state', async () => {
   assert.match(result, /<details[^>]*><summary><span[^>]*>Show code<\/span><\/summary>/);
   assert.match(result, /<pre>42<\/pre>/);
   assert.doesNotMatch(result, /<pre>suppressed-output/);
+  const streams = await render('```{code-cell} python\n:tags: [remove-stderr]\n\nimport sys\nprint("kept-stdout")\nprint("dropped-stderr", file=sys.stderr)\n"kept-result"\n```');
+  const outputs = streams.slice(streams.indexOf('class="jupyter-outputs"'));
+  assert.match(outputs, /<pre>kept-stdout/);
+  assert.match(outputs, /kept-result/);
+  assert.doesNotMatch(outputs, /dropped-stderr/);
 });
 
 test('MIME priority, escaped text, math, image and interactive representations', async () => {
