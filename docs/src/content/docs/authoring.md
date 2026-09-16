@@ -148,6 +148,43 @@ npm run docs:build
 
 Every panel is present in the page, so search and printing see all tabs.
 
+## Grids and cards
+
+A `grid` arranges `card` directives, or `grid-item` blocks, into responsive
+columns. Its argument gives up to four column counts for increasing screen
+widths. A card's `link` may be an external URL or a collection page:
+
+````markdown
+::::{grid} 1 1 2 2
+:::{card} Executable walkthrough
+:link: walkthrough.md
+Build a page from native execution to a browser notebook.
++++
+Start here
+:::
+:::{card} Browser execution
+:link: browser.md
+Declare an Emscripten-forge environment for Xeus.
+:::
+::::
+````
+
+::::{grid} 1 1 2 2
+:::{card} Executable walkthrough
+:link: walkthrough.md
+Build a page from native execution to a browser notebook.
++++
+Start here
+:::
+:::{card} Browser execution
+:link: browser.md
+Declare an Emscripten-forge environment for Xeus.
+:::
+::::
+
+Inside a card, `^^^` separates a header from the body and `+++` separates the
+body from a footer.
+
 ## Diagrams
 
 The `mermaid` directive, or a fenced block with the `mermaid` language,

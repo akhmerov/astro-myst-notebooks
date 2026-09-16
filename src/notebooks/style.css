@@ -211,3 +211,25 @@ pre.mermaid svg { max-width: 100%; height: auto; }
 .tab-set > .tab-list > [role='tab']:focus-visible { outline: 2px solid var(--sl-color-accent-high); outline-offset: -2px; }
 .tab-set > .tab-panel { padding: 0 1rem 1rem; }
 .tab-set > .tab-panel[hidden] { display: none; }
+
+/* Grids and cards. */
+.grid { display: grid; gap: 1rem; margin-block: 1rem; grid-template-columns: repeat(var(--grid-xs, 1), minmax(0, 1fr)); }
+@media (min-width: 40rem) { .grid { grid-template-columns: repeat(var(--grid-sm, 1), minmax(0, 1fr)); } }
+@media (min-width: 60rem) { .grid { grid-template-columns: repeat(var(--grid-md, 1), minmax(0, 1fr)); } }
+@media (min-width: 80rem) { .grid { grid-template-columns: repeat(var(--grid-lg, 1), minmax(0, 1fr)); } }
+.grid > * { margin-block: 0; min-width: 0; }
+.card {
+  display: flex; flex-direction: column; margin-block: 1rem;
+  border: 1px solid var(--sl-color-hairline-light); border-radius: 0.5rem; background: var(--sl-color-bg-nav);
+  color: inherit; text-decoration: none; overflow: hidden;
+}
+.grid > .card { margin-block: 0; }
+a.card:hover { border-color: var(--sl-color-accent); }
+.card > * { padding: 0.5rem 1rem; }
+.card > .card-header, .card > .card-footer { color: var(--sl-color-gray-2); font-size: 0.875rem; }
+.card > .card-header { border-bottom: 1px solid var(--sl-color-hairline-light); }
+.card > .card-footer { border-top: 1px solid var(--sl-color-hairline-light); margin-top: auto; }
+.card > .card-title { font-weight: 600; color: var(--sl-color-white); padding-bottom: 0; }
+.card > .card-body { flex: 1; }
+.card > .card-body > :first-child { margin-top: 0; }
+.card > .card-body > :last-child { margin-bottom: 0; }

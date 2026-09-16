@@ -34,3 +34,11 @@ test('tab sets render accessible tabs with sync keys and a selected item', async
   assert.match(html, /<div class="tab-panel" role="tabpanel" id="tabs-1-panel-2" aria-labelledby="tabs-1-tab-2"><p>/);
   assert.match(html, /id="tabs-2-tab-1"/);
 });
+
+test('grids and cards render responsive columns, card parts, and links', async () => {
+  const html = await render(['::::{grid} 1 2 3', ':::{card} Title', ':link: https://example.org/', 'Header', '^^^', 'Body text.', '+++', 'Footer', ':::', ':::{grid-item}', ':columns: 2', 'Plain item.', ':::', '::::'].join('\n'));
+  assert.match(html, /<div class="grid" style="--grid-xs:1;--grid-sm:2;--grid-md:3;--grid-lg:3">/);
+  assert.match(html, /<a class="card" href="https:\/\/example.org\/"><div class="card-header"><p>[^]*?Header[^]*?<\/div><div class="card-title">[^]*?Title[^]*?<\/div><div class="card-body"><p>[^]*?Body text\.[^]*?<\/div><div class="card-footer"><p>[^]*?Footer[^]*?<\/div><\/a>/);
+  assert.match(html, /<div class="grid-item" style="grid-column: span 2"><p>/);
+  assert.match(await render(':::{card}\nJust a body.\n:::'), /<div class="card"><div class="card-body"><p>/);
+});

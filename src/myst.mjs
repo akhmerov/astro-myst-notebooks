@@ -71,6 +71,25 @@ export const mystRehype = {
           }, all(h, item))),
         ]);
       },
+      grid: (h, node) => {
+        // Up to four column counts (xs, sm, md, lg); missing sizes repeat the last one.
+        const columns = [0, 1, 2, 3].map(index => node.columns[Math.min(index, node.columns.length - 1)]);
+        return h(node, 'div', { className: ['grid'], id: node.html_id ?? node.identifier,
+          style: ['xs', 'sm', 'md', 'lg'].map((size, index) => `--grid-${size}:${columns[index]}`).join(';') }, all(h, node));
+      },
+      'grid-item': (h, node) => h(node, 'div', { className: ['grid-item', ...(node.class ? node.class.split(/\s+/) : [])],
+        id: node.html_id ?? node.identifier, style: node.columns ? `grid-column: span ${node.columns}` : undefined }, all(h, node)),
+      card: (h, node) => {
+        const part = type => node.children.filter(child => child.type === type);
+        const body = node.children.filter(child => !['header', 'cardTitle', 'footer'].includes(child.type));
+        const children = [
+          ...part('header').map(child => h(child, 'div', { className: ['card-header'] }, all(h, child))),
+          ...part('cardTitle').map(child => h(child, 'div', { className: ['card-title'] }, all(h, child))),
+          ...(body.length ? [h(node, 'div', { className: ['card-body'] }, all(h, { ...node, children: body }))] : []),
+          ...part('footer').map(child => h(child, 'div', { className: ['card-footer'] }, all(h, child))),
+        ];
+        return h(node, node.url ? 'a' : 'div', { className: ['card'], href: node.url, id: node.html_id ?? node.identifier }, children);
+      },
       glossary: (h, node) => h(node, 'div', { className: ['glossary'] }, all(h, node)),
       // Diagrams render in the browser (see notebooks/diagrams.ts); the source stays readable without JS.
       mermaid: (h, node) => h(node, 'pre', { className: ['mermaid'] }, [{ type: 'text', value: node.value }]),

@@ -115,9 +115,9 @@ export async function resolveDocument(source, file, { root = process.cwd(), docu
   await Promise.all(pages.map(page => prepare(page, root)));
   const page = pages.find(page => page.file.path === path);
   const state = new MultiPageReferenceResolver(pages.map(page => page.state), path, page.file);
-  visit(page.tree, 'link', node => {
+  visit(page.tree, ['link', 'card'], node => {
     // Translate file links using the collection's actual routes before resolving.
-    const [name, label] = node.url.split('#');
+    const [name, label] = (node.url ?? '').split('#');
     if (!name.endsWith('.md') || name.includes('://')) return;
     const origin = node.data?.origin?.file ? resolve(root, node.data.origin.file) : path;
     const target = resolve(dirname(origin), name);
@@ -127,6 +127,11 @@ export async function resolveDocument(source, file, { root = process.cwd(), docu
     if (candidates.length > 1) page.file.fail(`Ambiguous included document: ${name}`, node.position);
     const destination = candidates[0] ?? pages.find(other => other.file.path === resolve(dirname(path), name));
     if (!destination) page.file.fail(`Unknown document: ${name}`, node.position);
+    if (node.type === 'card') {
+      if (label && !destination.state.getTarget(label)) page.file.fail(`Unresolved reference: ${name}#${label}`, node.position);
+      node.url = label ? `${destination.url}#${destination.state.getTarget(label).node.html_id ?? label}` : destination.url;
+      return;
+    }
     if (!label) { node.url = destination.url; if (!node.children?.length) node.children = [{ type: 'text', value: destination.frontmatter.title ?? name }]; return; }
     node.type = 'crossReference'; node.identifier = label;
     destination.state.resolveReferenceContent(node);
@@ -158,6 +163,7 @@ export async function resolveDocument(source, file, { root = process.cwd(), docu
     'admonition', 'admonitionTitle', 'container', 'caption', 'captionNumber', 'legend',
     'definitionList', 'definitionTerm', 'definitionDescription', 'abbreviation',
     'subscript', 'superscript', 'keyboard', 'span', 'outputs', 'inlineExpression', 'glossary', 'iframe', 'mermaid', 'tabSet', 'tabItem',
+    'grid', 'grid-item', 'card', 'cardTitle', 'header', 'footer',
   ]);
   visit(page.tree, node => {
     if (!supported.has(node.type)) page.file.fail(`MyST construct is not supported by this renderer: ${node.type}`, node.position);

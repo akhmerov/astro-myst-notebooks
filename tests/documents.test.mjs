@@ -54,6 +54,20 @@ test('MyST includes, citations, numbered targets and cross-page routes resolve t
   assert.ok(nodes(updated, 'text').some(node => node.value === 'updated phrase'));
 }));
 
+test('card links to collection pages resolve through the route manifest', () => fixture(async root => {
+  await writeFile(join(root, 'other.md'), '---\ntitle: Other\n---\n\n(target)=\n## Section');
+  const manifest = join(root, 'documents.json');
+  const path = join(root, 'index.md');
+  await writeFile(manifest, JSON.stringify([{ path, url: '/' }, { path: join(root, 'other.md'), url: '/other/' }]));
+  const source = ':::{card} Other\n:link: other.md#target\nBody\n:::\n\n:::{card} Page\n:link: other.md\nBody\n:::';
+  await writeFile(path, source);
+  const tree = await resolveDocument(source, { path }, { root, documents: manifest });
+  assert.deepEqual(nodes(tree, 'card').map(node => node.url), ['/other/#target', '/other/']);
+  const missing = ':::{card}\n:link: other.md#missing\nBody\n:::';
+  await writeFile(path, missing);
+  await assert.rejects(resolveDocument(missing, { path }, { root, documents: manifest }), /Unresolved reference/);
+}));
+
 test('glossary terms resolve locally and across pages', () => fixture(async root => {
   const glossary = '---\ntitle: Terms\n---\n\n```{glossary}\nKernel\n: The executing process.\n```\n\nA {term}`kernel` and {term}`the kernel <Kernel>`.';
   const other = '---\ntitle: Other\n---\n\nRemote {term}`Kernel`.';

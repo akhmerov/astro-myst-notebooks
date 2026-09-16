@@ -45,6 +45,9 @@ test('layout constructs render on the authoring page', () => {
   const nodes = elements(pages.get('authoring'));
   const diagram = nodes.find(node => node.tagName === 'pre' && node.properties.className?.includes('mermaid'));
   assert.match(text(diagram), /flowchart LR/);
+  const cards = nodes.filter(node => node.tagName === 'a' && node.properties.className?.includes('card'));
+  assert.deepEqual(cards.map(node => node.properties.href), [`${base}/walkthrough/`, `${base}/browser/`]);
+  assert.ok(cards[0].children.some(node => node.properties?.className?.includes('card-footer')));
   const tabs = nodes.filter(node => node.properties.role === 'tab');
   assert.deepEqual(tabs.map(text), ['Pixi', 'npm']);
   assert.deepEqual(tabs.map(node => node.properties.ariaSelected), ['true', 'false']);
