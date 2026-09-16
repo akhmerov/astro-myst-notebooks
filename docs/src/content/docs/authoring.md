@@ -261,8 +261,13 @@ outside the loader's pattern; this site's underscore-prefixed filenames are
 excluded by `**/[^_]*.md`. Included prose retains its own file origin. A filtered
 include must map uniquely to a contiguous region of the original source.
 
-Until relative included assets are rebased by the integration, use a
-root-relative public asset URL such as `/figures/diagram.svg` inside includes.
+Relative image, link, and frame paths inside an included file resolve from
+that file, and Astro's image pipeline then processes local images as usual.
+The figure below comes from `_partials/_figure.md` and points at an SVG next
+to it:
+
+```{include} _partials/_figure.md
+```
 
 ### Embed labelled content
 

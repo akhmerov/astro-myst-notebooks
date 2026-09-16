@@ -54,6 +54,24 @@ test('MyST includes, citations, numbered targets and cross-page routes resolve t
   assert.ok(nodes(updated, 'text').some(node => node.value === 'updated phrase'));
 }));
 
+test('relative assets inside includes are rebased onto the including page', () => fixture(async root => {
+  await mkdir(join(root, 'pages', 'parts'), { recursive: true });
+  await writeFile(join(root, 'pages', 'parts', 'part.md'), [
+    '![alt](./figure.png)', '[data](../data/table.csv#row)', '[page](../other.md)', '[abs](/static.png)', '[site](https://example.org/x.png)',
+    '```{iframe} ./frame.html\n```', '```{figure} figure.svg\n\nCaption.\n```',
+  ].join('\n\n'));
+  await writeFile(join(root, 'other.md'), '---\ntitle: Other\n---\n\nText');
+  const path = join(root, 'pages', 'index.md');
+  const source = '```{include} parts/part.md\n```\n\n![own](./own.png)';
+  await writeFile(path, source);
+  const manifest = join(root, 'documents.json');
+  await writeFile(manifest, JSON.stringify([{ path, url: '/pages/' }, { path: join(root, 'other.md'), url: '/other/' }]));
+  const tree = await resolveDocument(source, { path }, { root, documents: manifest });
+  assert.deepEqual(nodes(tree, 'image').map(node => node.url), ['./parts/figure.png', './parts/figure.svg', './own.png']);
+  assert.deepEqual(nodes(tree, 'link').map(node => node.url), ['./data/table.csv#row', '/other/', '/static.png', 'https://example.org/x.png']);
+  assert.equal(nodes(tree, 'iframe')[0].src, './parts/frame.html');
+}));
+
 test('embed copies labelled content across pages and refuses executed cells', () => fixture(async root => {
   const other = '---\ntitle: Other\n---\n\n```{figure} /icon.png\n:name: shared-figure\n\nA **shared** caption.\n```\n\n```{code-cell} python\n:name: shared-cell\n\nx = 1\n```';
   const source = '(local-eq)=\n```{math}\nx = 1\n```\n\n```{embed} #shared-figure\n```\n\n```{embed} local-eq\n```';

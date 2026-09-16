@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mystParse } from 'myst-parser';
 import { directives, roles } from './syntax.mjs';
@@ -42,6 +42,19 @@ async function prepare(document, root) {
     },
   });
   diagnostics(file);
+  // Included files keep their own asset paths; rebase them onto the including page.
+  const own = relative(root, file.path).replaceAll('\\', '/');
+  visit(tree, node => {
+    const origin = node.data?.origin;
+    if (!origin || origin.file === own) return;
+    for (const key of node.type === 'image' ? ['url'] : node.type === 'link' ? ['url'] : node.type === 'iframe' ? ['src'] : []) {
+      const value = node[key];
+      if (typeof value !== 'string' || /^(\/|#|[a-z][a-z0-9+.-]*:)/i.test(value) || /\.md(#|$)/.test(value)) continue;
+      const [target, hash] = value.split('#');
+      const rebased = relative(dirname(file.path), resolve(root, dirname(origin.file), target)).replaceAll('\\', '/');
+      node[key] = `${rebased.startsWith('.') ? '' : './'}${rebased}${hash !== undefined ? `#${hash}` : ''}`;
+    }
+  });
   visit(tree, node => {
     if (node.type === 'include') {
       if (!node.children?.length) file.fail(`Unresolved include: ${node.file}`, node.position);

@@ -48,6 +48,10 @@ test('layout constructs render on the authoring page', () => {
   const cards = nodes.filter(node => node.tagName === 'a' && node.properties.className?.includes('card'));
   assert.deepEqual(cards.map(node => node.properties.href), [`${base}/walkthrough/`, `${base}/browser/`]);
   assert.ok(cards[0].children.some(node => node.properties?.className?.includes('card-footer')));
+  const figure = nodes.find(node => node.tagName === 'figure' && node.properties.id === 'included-figure');
+  const image = elements(figure).find(node => node.tagName === 'img');
+  assert.match(image.properties.src, new RegExp(`^${base}/_astro/diagram\\.[\\w-]+\\.svg$`));
+  assert.equal(image.properties.alt, 'A source box with an arrow to a page box');
   const equations = nodes.filter(node => node.properties.className?.includes('katex-display'));
   assert.ok(equations.some(node => text(node).includes('S_n = ')));
   assert.equal(nodes.filter(node => node.properties.id === 'triangular-sum').length, 0);
