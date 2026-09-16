@@ -47,7 +47,7 @@ async function prepare(document, root) {
       if (!node.children?.length) file.fail(`Unresolved include: ${node.file}`, node.position);
       node.type = 'block';
     }
-    if (['embed', 'myst', 'mdast', 'linkBlock', 'index'].includes(node.type)) {
+    if (['myst', 'mdast', 'linkBlock', 'index'].includes(node.type)) {
       file.fail(`MyST construct is not supported by this renderer: ${node.type}`, node.position);
     }
   });
@@ -114,6 +114,20 @@ export async function resolveDocument(source, file, { root = process.cwd(), docu
   }));
   await Promise.all(pages.map(page => prepare(page, root)));
   const page = pages.find(page => page.file.path === path);
+  // Embed copies labelled content from any page of the collection. Executed
+  // cells are excluded: their outputs belong to the kernel of their own page.
+  visit(page.tree, 'embed', (node, index, parent) => {
+    const label = node.source?.label;
+    const owners = pages.filter(other => other.state.getTarget(label));
+    if (!owners.length) page.file.fail(`Unresolved embed target: ${label}`, node.position);
+    if (owners.length > 1 && owners.filter(other => other === page).length !== 1) page.file.fail(`Ambiguous embed target: ${label}; label it uniquely in the collection`, node.position);
+    const owner = owners.find(other => other === page) ?? owners[0];
+    const copy = structuredClone(owner.state.getTarget(label).node);
+    visit(copy, 'code', child => { if (child.executable) page.file.fail(`Cannot embed an executed cell: ${label}`, node.position); });
+    // Keep the enumerator so "Figure 2" still reads as in its source; drop ids that would repeat.
+    delete copy.identifier; delete copy.label; delete copy.html_id;
+    parent.children[index] = copy;
+  });
   const state = new MultiPageReferenceResolver(pages.map(page => page.state), path, page.file);
   visit(page.tree, ['link', 'card'], node => {
     // Translate file links using the collection's actual routes before resolving.

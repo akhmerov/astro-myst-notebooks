@@ -264,6 +264,23 @@ include must map uniquely to a contiguous region of the original source.
 Until relative included assets are rebased by the integration, use a
 root-relative public asset URL such as `/figures/diagram.svg` inside includes.
 
+### Embed labelled content
+
+The `embed` directive copies a labelled figure, equation, table, or block from
+any page of the collection:
+
+````markdown
+```{embed} #triangular-sum
+```
+````
+
+```{embed} #triangular-sum
+```
+
+The copy keeps its source numbering and provenance. Executed cells cannot be
+embedded because their outputs belong to the kernel of their own page; link to
+the page instead.
+
 ## Citations and inventories
 
 Declare a local BibTeX file in frontmatter, then cite its keys:

@@ -54,6 +54,27 @@ test('MyST includes, citations, numbered targets and cross-page routes resolve t
   assert.ok(nodes(updated, 'text').some(node => node.value === 'updated phrase'));
 }));
 
+test('embed copies labelled content across pages and refuses executed cells', () => fixture(async root => {
+  const other = '---\ntitle: Other\n---\n\n```{figure} /icon.png\n:name: shared-figure\n\nA **shared** caption.\n```\n\n```{code-cell} python\n:name: shared-cell\n\nx = 1\n```';
+  const source = '(local-eq)=\n```{math}\nx = 1\n```\n\n```{embed} #shared-figure\n```\n\n```{embed} local-eq\n```';
+  const path = join(root, 'index.md');
+  await writeFile(join(root, 'other.md'), other);
+  await writeFile(path, source);
+  const manifest = join(root, 'documents.json');
+  await writeFile(manifest, JSON.stringify([{ path, url: '/' }, { path: join(root, 'other.md'), url: '/other/' }]));
+  const tree = await resolveDocument(source, { path }, { root, documents: manifest });
+  assert.equal(nodes(tree, 'embed').length, 0);
+  const figure = nodes(tree, 'container')[0];
+  assert.equal(figure.identifier, undefined);
+  assert.equal(nodes(figure, 'text').find(node => node.value === 'shared').data.origin.file, 'other.md');
+  assert.equal(nodes(tree, 'math').length, 2);
+  assert.equal(nodes(tree, 'math').filter(node => node.identifier === 'local-eq').length, 1);
+  for (const [embed, message] of [['```{embed} #shared-cell\n```', /Cannot embed an executed cell/], ['```{embed} #absent\n```', /Unresolved embed target/]]) {
+    await writeFile(path, embed);
+    await assert.rejects(resolveDocument(embed, { path }, { root, documents: manifest }), message);
+  }
+}));
+
 test('card links to collection pages resolve through the route manifest', () => fixture(async root => {
   await writeFile(join(root, 'other.md'), '---\ntitle: Other\n---\n\n(target)=\n## Section');
   const manifest = join(root, 'documents.json');

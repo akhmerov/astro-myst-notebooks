@@ -48,6 +48,9 @@ test('layout constructs render on the authoring page', () => {
   const cards = nodes.filter(node => node.tagName === 'a' && node.properties.className?.includes('card'));
   assert.deepEqual(cards.map(node => node.properties.href), [`${base}/walkthrough/`, `${base}/browser/`]);
   assert.ok(cards[0].children.some(node => node.properties?.className?.includes('card-footer')));
+  const equations = nodes.filter(node => node.properties.className?.includes('katex-display'));
+  assert.ok(equations.some(node => text(node).includes('S_n = ')));
+  assert.equal(nodes.filter(node => node.properties.id === 'triangular-sum').length, 0);
   const tabs = nodes.filter(node => node.properties.role === 'tab');
   assert.deepEqual(tabs.map(text), ['Pixi', 'npm']);
   assert.deepEqual(tabs.map(node => node.properties.ariaSelected), ['true', 'false']);
