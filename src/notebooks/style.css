@@ -169,3 +169,24 @@ jupyter-notebook { display: block; }
   white-space: nowrap;
   text-align: right;
 }
+
+/* Jupyter tracebacks: JupyterLab's ANSI palette, readable on both themes. */
+.jupyter-output .jupyter-error { white-space: pre-wrap; overflow-wrap: anywhere; }
+.ansi-bold { font-weight: bold; }
+.ansi-dim { opacity: 0.7; }
+.ansi-italic { font-style: italic; }
+.ansi-underline { text-decoration: underline; }
+.ansi-black-fg { color: #3e424d; } .ansi-red-fg { color: #e75c58; } .ansi-green-fg { color: #00a250; }
+.ansi-yellow-fg { color: #ddb62b; } .ansi-blue-fg { color: #208ffb; } .ansi-magenta-fg { color: #d160c4; }
+.ansi-cyan-fg { color: #60c6c8; } .ansi-white-fg { color: #c5c1b4; }
+.ansi-bright-black-fg { color: #282c36; } .ansi-bright-red-fg { color: #b22b31; } .ansi-bright-green-fg { color: #007427; }
+.ansi-bright-yellow-fg { color: #b27d12; } .ansi-bright-blue-fg { color: #0065ca; } .ansi-bright-magenta-fg { color: #a03196; }
+.ansi-bright-cyan-fg { color: #258f8f; } .ansi-bright-white-fg { color: #a1a6b2; }
+.ansi-black-bg { background: #3e424d; } .ansi-red-bg { background: #e75c58; } .ansi-green-bg { background: #00a250; }
+.ansi-yellow-bg { background: #ddb62b; } .ansi-blue-bg { background: #208ffb; } .ansi-magenta-bg { background: #d160c4; }
+.ansi-cyan-bg { background: #60c6c8; } .ansi-white-bg { background: #c5c1b4; }
+.ansi-bright-black-bg { background: #282c36; } .ansi-bright-red-bg { background: #b22b31; } .ansi-bright-green-bg { background: #007427; }
+.ansi-bright-yellow-bg { background: #b27d12; } .ansi-bright-blue-bg { background: #0065ca; } .ansi-bright-magenta-bg { background: #a03196; }
+.ansi-bright-cyan-bg { background: #258f8f; } .ansi-bright-white-bg { background: #a1a6b2; }
+:root[data-theme='dark'] .ansi-black-fg { color: #a1a6b2; }
+:root[data-theme='dark'] .ansi-bright-black-fg { color: #c5c1b4; }

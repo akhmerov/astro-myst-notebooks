@@ -8,6 +8,7 @@ import remarkRehype from 'remark-rehype';
 import { toHtml } from 'hast-util-to-html';
 import { executePage, remarkJupyter } from '../dist/jupyter.mjs';
 import { renderOutput, rehypeJupyter } from '../dist/mime.mjs';
+import { ansiToHast } from '../dist/ansi.mjs';
 
 const cwd = fileURLToPath(new URL('../', import.meta.url));
 
@@ -36,6 +37,25 @@ test('real Jupyter state, MIME bundles, display updates, clear_output, and kerne
 test('execution errors and per-cell timeouts reject', async () => {
   await assert.rejects(executePage(['raise ValueError("intentional-test-error")'], { cwd }), /intentional-test-error/);
   await assert.rejects(executePage(['import time; time.sleep(10)'], { cwd, timeout: 1 }), /CellTimeoutError/);
+});
+
+test('raises-exception publishes the traceback and later cells keep running', async () => {
+  const result = await render([
+    '```{code-cell} python\n:tags: [raises-exception]\n\nraise ValueError("expected-test-error")\n```',
+    '```{code-cell} python\nprint("still-running")\n```',
+  ].join('\n\n'));
+  assert.match(result, /data-tags="raises-exception"/);
+  assert.match(result, /data-mime="application\/vnd.jupyter.error"><pre class="jupyter-error">/);
+  assert.match(result, /class="ansi-[a-z-]*"[^>]*>ValueError/);
+  assert.match(result, /expected-test-error/);
+  assert.doesNotMatch(result, /\x1b/);
+  assert.match(result, /<pre>still-running/);
+  await assert.rejects(render('```{code-cell} python\nraise ValueError("untagged-test-error")\n```'), /untagged-test-error/);
+});
+
+test('ANSI colours, bold, resets, 256-colour and truecolour codes become spans', () => {
+  const html = toHtml({ type: 'root', children: ansiToHast('\x1b[1;31mbold red\x1b[0m plain \x1b[38;5;208morange\x1b[39m \x1b[48;2;1;2;3mbg\x1b[0m \x1b[2Kcleared') });
+  assert.equal(html, '<span class="ansi-bold ansi-red-fg">bold red</span> plain <span style="color:rgb(255,135,0)">orange</span> <span style="background-color:rgb(1,2,3)">bg</span> cleared');
 });
 
 test('plain pages do not execute; hidden cells still share state', async () => {

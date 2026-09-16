@@ -46,7 +46,7 @@ def execute(request):
             nbformat.v4.new_code_cell(
                 cell["source"],
                 id=cell["id"],
-                metadata={"source_map": cell.get("origin")},
+                metadata={"source_map": cell.get("origin"), "tags": cell.get("tags", [])},
             )
             for cell in cells
         ]

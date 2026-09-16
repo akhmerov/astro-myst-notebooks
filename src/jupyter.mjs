@@ -69,9 +69,9 @@ export function remarkJupyter({ interactive = false, ...options } = {}) {
     });
     if (!cells.length) return;
     let notebook;
-    const sources = cells.map(({ node }, index) => ({
+    const sources = cells.map(({ node, parent }, index) => ({
       id: createHash('sha256').update(`${file.path}:${index}:${node.value}`).digest('hex').slice(0, 32),
-      source: node.value, origin: node.data?.origin,
+      source: node.value, origin: node.data?.origin, tags: [...(parent.data?.tags ?? [])],
     }));
     const key = JSON.stringify([file.path, sources, execution]);
     try {
@@ -114,6 +114,7 @@ export function remarkJupyter({ interactive = false, ...options } = {}) {
         type: 'jupyterCell',
         data: { hName: 'div', hProperties: {
           className: ['jupyter-cell'], dataSource: node.value, dataCellId: sources[i].id,
+          dataTags: sources[i].tags.length ? sources[i].tags.join(' ') : undefined,
           dataOrigin: node.data?.origin ? JSON.stringify(node.data.origin) : undefined,
           hidden: flags.has('hide-cell'),
           dataHideOutput: flags.has('hide-output') ? 'true' : 'false',

@@ -5,6 +5,7 @@ import remarkMath from 'remark-math';
 import remarkRehype from 'remark-rehype';
 import rehypeKatex from 'rehype-katex';
 import katex from 'katex';
+import { ansiToHast } from './ansi.mjs';
 
 export const mimePriority = [
   'application/vnd.plotly.v1+json', 'text/html', 'text/markdown',
@@ -24,6 +25,11 @@ export async function renderOutput(output) {
   if (output.output_type === 'stream') {
     mime = output.name;
     children = [element('pre', {}, [text(string(output.text))])];
+  } else if (output.output_type === 'error') {
+    // Only cells tagged raises-exception reach this point: the build otherwise fails.
+    mime = 'application/vnd.jupyter.error';
+    const traceback = output.traceback?.length ? output.traceback.join('\n') : `${output.ename}: ${output.evalue}`;
+    children = [element('pre', { className: ['jupyter-error'] }, ansiToHast(traceback))];
   } else {
     mime = mimePriority.find((type) => Object.hasOwn(output.data ?? {}, type));
     if (!mime) throw new Error(`Unsupported Jupyter MIME bundle: ${Object.keys(output.data ?? {}).join(', ')}`);

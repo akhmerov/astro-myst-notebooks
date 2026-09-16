@@ -46,6 +46,11 @@ print("The code is collapsible; this output stays visible")
 | `remove-input` | Omit the displayed input |
 | `hide-output` or `remove-output` | Omit the output |
 | `hide-cell` or `remove-cell` | Hide the entire cell |
+| `raises-exception` | Expect an error; publish the traceback instead of failing the build |
+
+A cell that raises without `raises-exception` still fails the build, and a
+tagged cell that succeeds is published as is. Browser **Run all** continues
+past a tagged cell's error and stops at any other error.
 
 Hidden cells still execute during the build and remain in browser **Run all**
 order. Activating interactive mode creates editors from authored source, so

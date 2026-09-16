@@ -137,12 +137,15 @@ export class NotebookSession {
 
   cellIndex(id?: string) { return this.notebook?.cells.findIndex(cell => cell.id === id) ?? -1; }
 
-  async runAll() {
+  /** Execute cells in authored order; `tags(index)` reports the cell's MyST tags. */
+  async runAll(tags: (index: number) => readonly string[] = () => []) {
     const generation = this.generation;
-    for (const cell of this.notebook!.cells) {
+    for (const [index, cell] of this.notebook!.cells.entries()) {
       if (this.closed || generation !== this.generation) return;
       const result = await cell.execute();
-      if (!result || result.error?.length) throw new Error('A cell failed. Fix the error shown below and run again.');
+      if (!result) throw new Error('A cell failed. Fix the error shown below and run again.');
+      // Documented exceptions continue, matching the build's raises-exception semantics.
+      if (result.error?.length && !tags(index).includes('raises-exception')) throw new Error('A cell failed. Fix the error shown below and run again.');
     }
   }
 

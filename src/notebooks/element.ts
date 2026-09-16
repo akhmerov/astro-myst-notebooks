@@ -199,7 +199,7 @@ class JupyterNotebook extends HTMLElement {
     const operation = ++this.operation;
     this.setState('running', 'Running cells…');
     try {
-      await session.runAll();
+      await session.runAll(index => this.cells[index]?.dataset.tags?.split(' ') ?? []);
       if (this.session === session && this.operation === operation) this.setState('ready', 'All cells completed.');
     } catch (error) {
       if (this.session === session && this.operation === operation) this.setState('ready', error instanceof Error ? error.message : 'Execution failed.');
