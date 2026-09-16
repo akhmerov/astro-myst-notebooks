@@ -156,7 +156,7 @@ export async function resolveDocument(source, file, { root = process.cwd(), docu
     'table', 'tableRow', 'tableCell', 'definition', 'footnoteDefinition', 'footnoteReference',
     'admonition', 'admonitionTitle', 'container', 'caption', 'captionNumber', 'legend',
     'definitionList', 'definitionTerm', 'definitionDescription', 'abbreviation',
-    'subscript', 'superscript', 'keyboard', 'span', 'outputs',
+    'subscript', 'superscript', 'keyboard', 'span', 'outputs', 'inlineExpression',
   ]);
   visit(page.tree, node => {
     if (!supported.has(node.type)) page.file.fail(`MyST construct is not supported by this renderer: ${node.type}`, node.position);

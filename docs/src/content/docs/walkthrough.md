@@ -45,6 +45,9 @@ assert total == n * (n + 1) // 2
 print(f"Sum: {total}")
 ```
 
+Prose can quote the kernel directly: the `eval` role reports that the first
+{eval}`n` terms sum to {eval}`total`, computed during the build.
+
 ## Rich output from MIME bundles
 
 Jupyter records structured MIME bundles. This cell supplies both HTML and plain

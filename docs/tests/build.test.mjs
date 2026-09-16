@@ -31,6 +31,9 @@ test('the documentation renders real Jupyter results and includes hidden setup',
   const outputs = nodes.filter(node => node.properties.className?.includes('jupyter-output'));
   assert.ok(outputs.some(node => text(node).includes('Sum: 36')));
   assert.ok(outputs.some(node => node.properties.dataMime === 'text/html' && text(node).includes('Computed total: 36')));
+  const inline = nodes.filter(node => node.properties.className?.includes('jupyter-inline'));
+  assert.deepEqual(inline.map(text), ['8', '36']);
+  assert.ok(inline.every(node => node.tagName === 'span' && node.properties.dataSourceGenerated === 'true'));
   const plot = nodes.find(node => node.properties.dataPlotly);
   assert.deepEqual(JSON.parse(plot.properties.dataPlotly).data[0].y, [1, 3, 6, 10, 15, 21, 28, 36]);
   assert.ok(nodes.some(node => node.tagName === 'jupyter-notebook'));

@@ -19,9 +19,25 @@ const string = (value) => Array.isArray(value) ? value.join('') : String(value);
 const html = (value) => fromHtml(value, { fragment: true }).children;
 const markdown = unified().use(remarkParse).use(remarkMath).use(remarkRehype).use(rehypeKatex);
 
-export async function renderOutput(output) {
+/** Render one Jupyter output; inline results (from {eval}) stay in the surrounding sentence. */
+export async function renderOutput(output, { inline = false } = {}) {
   let children;
   let mime;
+  if (inline) {
+    mime = mimePriority.find((type) => Object.hasOwn(output.data ?? {}, type));
+    if (!mime || mime === 'application/vnd.plotly.v1+json') throw new Error(`Unsupported inline Jupyter MIME bundle: ${Object.keys(output.data ?? {}).join(', ')}`);
+    const value = string(output.data[mime]);
+    if (mime === 'text/html' || mime === 'image/svg+xml') children = html(value);
+    else if (mime === 'text/markdown') {
+      const rendered = (await markdown.run(markdown.parse(value))).children.filter(child => child.type !== 'text' || child.value.trim());
+      children = rendered.length === 1 && rendered[0].tagName === 'p' ? rendered[0].children : rendered;
+    } else if (mime === 'text/latex') {
+      children = html(katex.renderToString(value.trim().replace(/^\$\$?|\$\$?$/g, '').replace(/^\\\(|\\\)$/g, ''), { displayMode: false, throwOnError: true }));
+    } else if (mime.startsWith('image/')) {
+      children = [element('img', { src: `data:${mime};base64,${value.replace(/\s/g, '')}`, alt: output.metadata?.[mime]?.alt ?? 'Inline figure' }, [])];
+    } else children = [text(value)];
+    return element('span', { className: ['jupyter-output', 'jupyter-inline'], dataMime: mime, dataSourceGenerated: 'true' }, children);
+  }
   if (output.output_type === 'stream') {
     mime = output.name;
     children = [element('pre', {}, [text(string(output.text))])];
@@ -64,7 +80,7 @@ export function rehypeJupyter() {
       for (let i = 0; i < (parent.children?.length ?? 0); i++) {
         const child = parent.children[i];
         if (child.type === 'element' && child.tagName === 'jupyter-output') {
-          parent.children[i] = await renderOutput(child.properties.bundle);
+          parent.children[i] = await renderOutput(child.properties.bundle, { inline: Boolean(child.properties.inline) });
         } else await replace(child);
       }
     }

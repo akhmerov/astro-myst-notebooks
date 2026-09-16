@@ -65,6 +65,26 @@ input visibility tags are presentation controls, not a way to conceal source.
 Set `thebe: false` in page frontmatter to retain build execution while disabling
 that page's interactive controls.
 
+## Inline expressions
+
+The `eval` role evaluates a Python expression in the page's kernel and places
+its result in the sentence:
+
+````markdown
+```{code-cell} python
+n = 8
+```
+
+The first {eval}`n` integers sum to {eval}`n * (n + 1) // 2`.
+````
+
+Cells and expressions run in source order, so prose reports the state at its
+position. Results follow the same MIME policy as cell outputs, rendered
+inline: text, HTML, Markdown, LaTeX, and images. A string appears as its
+Python representation; format it explicitly, for example with an f-string.
+An expression error fails the build. Inline results are computed during the
+build and do not update when readers run cells in the browser.
+
 ## Equations and links
 
 Label an equation and refer to it by name:

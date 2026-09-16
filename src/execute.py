@@ -35,12 +35,28 @@ def environment(request):
     return versions
 
 
+def evaluate(client, expression):
+    """Evaluate one inline expression through the protocol's user_expressions."""
+    msg_id = client.kc.execute(
+        "", silent=True, store_history=False, user_expressions={"result": expression}
+    )
+    reply = client.wait_for_reply(msg_id)
+    if reply is None:
+        raise RuntimeError("Timed out while evaluating an inline expression")
+    result = reply["content"].get("user_expressions", {}).get("result")
+    if result is None or result.get("status") != "ok":
+        detail = result or reply["content"]
+        raise RuntimeError(f"{detail.get('ename', 'Error')}: {detail.get('evalue', '')}")
+    return {"output_type": "display_data", "data": result["data"], "metadata": result.get("metadata", {})}
+
+
 def execute(request):
     """Run a page in a fresh kernel and retain structured cell failures."""
     import nbformat
     from nbclient import NotebookClient
 
-    cells = request["cells"]
+    items = request["cells"]
+    cells = [item for item in items if item.get("kind", "cell") == "cell"]
     notebook = nbformat.v4.new_notebook(
         cells=[
             nbformat.v4.new_code_cell(
@@ -59,12 +75,6 @@ def execute(request):
         resources={"metadata": {"path": str(Path(request["cwd"]).resolve())}},
     )
     active = None
-
-    def on_cell_execute(cell_index, **_kwargs):
-        nonlocal active
-        active = cell_index
-
-    client.on_cell_execute = on_cell_execute
     manager = client.create_kernel_manager()
     manager.kernel_spec.argv = [
         sys.executable,
@@ -73,17 +83,34 @@ def execute(request):
         "-f",
         "{connection_file}",
     ]
+    expressions = {}
     try:
-        client.execute()
+        # Mirror NotebookClient.execute, interleaving inline expressions with
+        # cells in authored order so prose sees the state at its position.
+        client.reset_execution_trackers()
+        with client.setup_kernel():
+            info = client.wait_for_reply(client.kc.kernel_info())
+            if info is not None and "language_info" in info["content"]:
+                notebook.metadata["language_info"] = info["content"]["language_info"]
+            index = 0
+            for item in items:
+                active = item
+                if item.get("kind", "cell") == "cell":
+                    client.execute_cell(
+                        notebook.cells[index], index, execution_count=client.code_cells_executed + 1
+                    )
+                    index += 1
+                else:
+                    expressions[item["id"]] = evaluate(client, item["source"])
     except Exception as error:
         return {
             "error": {
                 "name": type(error).__name__,
                 "message": str(error),
-                "cell": cells[active] if active is not None else None,
+                "cell": active,
             }
         }
-    return {"notebook": notebook}
+    return {"notebook": notebook, "expressions": expressions}
 
 
 def main(request):

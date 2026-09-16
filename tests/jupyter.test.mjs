@@ -67,6 +67,22 @@ test('skip-execution cells and execute.skip pages publish inputs without running
   }
 });
 
+test('inline {eval} expressions see the kernel state at their position', async () => {
+  const result = await render([
+    '```{code-cell} python\nn = 8\n```',
+    'Before: {eval}`n * (n + 1) // 2` and {eval}`f"{n:03d}"` and {eval}`__import__("IPython").display.HTML("<b>rich</b>")`.',
+    '```{code-cell} python\nn = 2\n```',
+    'After: {eval}`n`.',
+  ].join('\n\n'));
+  assert.match(result, /Before: <\/span><span class="jupyter-output jupyter-inline" data-mime="text\/plain" data-source-generated="true">36<\/span>/);
+  assert.match(result, /data-mime="text\/plain" data-source-generated="true">'008'<\/span>/);
+  assert.match(result, /data-mime="text\/html" data-source-generated="true"><b>rich<\/b><\/span>/);
+  assert.match(result, /After: <\/span><span[^>]*>2<\/span>/);
+  assert.doesNotMatch(result, /<pre>36/);
+  await assert.rejects(render('```{code-cell} python\nx = 1\n```\n\n{eval}`undefined_name`'), /NameError/);
+  await assert.rejects(render('{eval}`1`', { execute: { skip: true } }), /execute\.skip/);
+});
+
 test('ANSI colours, bold, resets, 256-colour and truecolour codes become spans', () => {
   const html = toHtml({ type: 'root', children: ansiToHast('\x1b[1;31mbold red\x1b[0m plain \x1b[38;5;208morange\x1b[39m \x1b[48;2;1;2;3mbg\x1b[0m \x1b[2Kcleared') });
   assert.equal(html, '<span class="ansi-bold ansi-red-fg">bold red</span> plain <span style="color:rgb(255,135,0)">orange</span> <span style="background-color:rgb(1,2,3)">bg</span> cleared');

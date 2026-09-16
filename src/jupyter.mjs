@@ -49,49 +49,70 @@ function requestPython(request, { python = 'python', cwd, timeout = 120, pixi } 
 
 export function checkEnvironment(options) { return requestPython({ operation: 'check' }, options); }
 
-export async function executePage(cells, options) {
-  const prepared = cells.map((cell, index) => typeof cell === 'string' ? {
-    id: createHash('sha256').update(`${index}:${cell}`).digest('hex').slice(0, 32), source: cell,
-  } : cell);
-  return (await requestPython({ operation: 'execute', cells: prepared }, options)).notebook;
+/** Run cells and inline expressions in authored order; returns the notebook and expression results by id. */
+export async function executeDocument(items, options) {
+  const prepared = items.map((item, index) => typeof item === 'string' ? {
+    id: createHash('sha256').update(`${index}:${item}`).digest('hex').slice(0, 32), source: item,
+  } : item);
+  return requestPython({ operation: 'execute', cells: prepared }, options);
 }
+
+export async function executePage(cells, options) { return (await executeDocument(cells, options)).notebook; }
 
 export function remarkJupyter({ interactive = false, ...options } = {}) {
   return async (tree, file) => {
     const metadata = file.data.astro?.frontmatter ?? {};
     const execution = metadata.kernelspec && file.path ? { ...options, cwd: dirname(file.path) } : options;
     const cells = [];
-    visit(tree, 'code', (node, index, parent) => {
-      if (node.executable) {
+    const expressions = [];
+    // Cells and {eval} expressions in one authored order: prose sees the kernel state at its position.
+    const order = [];
+    visit(tree, ['code', 'inlineExpression'], (node, index, parent) => {
+      if (node.type === 'inlineExpression') { expressions.push({ node, parent }); order.push({ kind: 'expression', node }); }
+      else if (node.executable) {
         if (node.lang && node.lang !== 'python') file.fail(`Unsupported execution language: ${node.lang}`);
         cells.push({ node, parent });
+        order.push({ kind: 'cell', node, parent });
       }
     });
-    if (!cells.length) return;
+    if (!cells.length && !expressions.length) return;
     // MyST frontmatter `execute.skip` (formerly `skip_execution`) publishes the
     // page's cells without running them; the skip-execution tag does so per cell.
     const skipPage = metadata.execute?.skip === true || metadata.skip_execution === true;
+    if (skipPage && expressions.length) file.fail('Inline expressions need execution; remove execute.skip or the {eval} roles', expressions[0].node.position);
     const sources = cells.map(({ node, parent }, index) => ({
-      id: createHash('sha256').update(`${file.path}:${index}:${node.value}`).digest('hex').slice(0, 32),
+      kind: 'cell', id: createHash('sha256').update(`${file.path}:${index}:${node.value}`).digest('hex').slice(0, 32),
       source: node.value, origin: node.data?.origin, tags: [...(parent.data?.tags ?? [])],
     }));
-    const executed = sources.filter(source => !skipPage && !source.tags.includes('skip-execution'));
+    const inline = expressions.map(({ node }, index) => ({
+      kind: 'expression', id: createHash('sha256').update(`${file.path}:eval:${index}:${node.value}`).digest('hex').slice(0, 32),
+      source: node.value, origin: node.data?.origin,
+    }));
+    const items = order.map(entry => entry.kind === 'cell' ? sources[cells.findIndex(cell => cell.node === entry.node)] : inline[expressions.findIndex(expression => expression.node === entry.node)])
+      .filter(item => !skipPage && !(item.tags ?? []).includes('skip-execution'));
     // Outputs by cell index; skipped cells publish their input only.
     const results = new Map();
-    if (executed.length) {
-      const key = JSON.stringify([file.path, executed, execution]);
-      let notebook;
+    const values = new Map();
+    if (items.length) {
+      const key = JSON.stringify([file.path, items, execution]);
+      let response;
       try {
         if (!notebooks.has(key)) {
-          notebooks.set(key, executePage(executed, execution));
-          console.info(`[jupyter] ${file.path}: executing ${executed.length} cells`);
+          notebooks.set(key, executeDocument(items, execution));
+          console.info(`[jupyter] ${file.path}: executing ${items.length} cells and expressions`);
         }
-        notebook = await notebooks.get(key);
+        response = await notebooks.get(key);
       } catch (error) {
         notebooks.delete(key);
         file.fail(`${error.cell?.origin?.file ?? file.path}: ${error.message}`, error.cell?.origin?.position);
       }
-      executed.forEach((source, index) => results.set(sources.indexOf(source), notebook.cells[index].outputs));
+      items.filter(item => item.kind === 'cell').forEach((source, index) => results.set(sources.indexOf(source), response.notebook.cells[index].outputs));
+      for (const item of inline) values.set(item.id, response.expressions[item.id]);
+    }
+    for (const [i, { node, parent }] of expressions.entries()) {
+      parent.children.splice(parent.children.indexOf(node), 1, {
+        type: 'jupyterInlineOutput', data: { hName: 'jupyter-output', hProperties: { bundle: values.get(inline[i].id), inline: true } }, children: [],
+      });
     }
     for (let i = cells.length - 1; i >= 0; i--) {
       const { node, parent } = cells[i];
