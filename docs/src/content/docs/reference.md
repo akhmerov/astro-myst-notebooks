@@ -60,6 +60,7 @@ execution environment.
 | `startupTimeout` | `120000` | Startup deadline in milliseconds |
 | `kernelName` | `xpython` | Browser kernel name |
 | `wheel` | Unset | `{ project: URL, command?: string[] }` for one pure-Python wheel |
+| `mounts` | `[]` | `{ source: URL, target: string }[]` copying local files or directory contents into absolute browser directories |
 
 Native `timeout` uses seconds; browser `startupTimeout` uses milliseconds.
 See [browser execution](browser.md) for environment caching and wheel requirements.

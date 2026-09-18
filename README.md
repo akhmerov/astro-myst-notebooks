@@ -53,6 +53,10 @@ pixi run docs-test
 pixi run pack
 ```
 
+`pixi run pack` (or `npm run package`) prepares the archive in an isolated staging
+directory, including its dependency fixes, without modifying `node_modules`.
+Bare `npm pack` directs you to this packaging command.
+
 `docs-test` builds the site, checks its TypeScript, and verifies rendered output,
 links, included-source origins, and browser assets. Use
 `DOCS_BASE=/manual/ pixi run docs-test` to check a deployment prefix.

@@ -1,6 +1,32 @@
 import { test, expect } from '@playwright/test';
 import type {} from '../../../dist/notebooks/source-selection.js';
 
+test('mounted files and directories are readable in browser Python and restored on restart', async ({ page }) => {
+  await page.goto('browser/');
+  const cell = page.locator('.jupyter-cell').first();
+  await expect(cell.locator('.jupyter-outputs')).toContainText('Measured total: 42');
+  await cell.getByRole('button', { name: 'Enable interactivity', exact: true }).click();
+  const controls = page.locator('[data-notebook-toolbar] [data-thebe-controls]');
+  await expect(controls).toHaveAttribute('data-state', 'ready', { timeout: 150000 });
+  await controls.getByRole('button', { name: 'Run all', exact: true }).click();
+  await expect(cell.locator('.jupyter-live-output')).toContainText('Measurements bundled with the documentation.');
+  await expect(cell.locator('.jupyter-live-output')).toContainText('Measured total: 42');
+  const source = await cell.getAttribute('data-source');
+  await cell.locator('.CodeMirror').evaluate((element, code) => {
+    (element as HTMLElement & { CodeMirror: { setValue(value: string): void } }).CodeMirror.setValue(code!);
+  }, "from pathlib import Path\nPath('/data/description.txt').write_text('edited')\nprint(Path('/data/description.txt').read_text())");
+  await cell.locator('.CodeMirror textarea').press('Shift+Enter');
+  await expect(cell.locator('.jupyter-live-output')).toContainText('edited');
+  await controls.getByRole('button', { name: 'Restart Python', exact: true }).click();
+  await expect(controls).toHaveAttribute('data-state', 'ready', { timeout: 60000 });
+  await cell.locator('.CodeMirror').evaluate((element, code) => {
+    (element as HTMLElement & { CodeMirror: { setValue(value: string): void } }).CodeMirror.setValue(code!);
+  }, source);
+  await controls.getByRole('button', { name: 'Run all', exact: true }).click();
+  await expect(cell.locator('.jupyter-live-output')).toContainText('Measurements bundled with the documentation.');
+  await expect(cell.locator('.jupyter-live-output')).toContainText('Measured total: 42');
+});
+
 test('rendered output, Plotly, navigation, and included source selections', async ({ page }) => {
   await page.goto('walkthrough/');
   await expect(page.getByRole('heading', { name: 'Executable walkthrough', exact: true })).toBeVisible();

@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { access, mkdir, readFile, writeFile, realpath } from 'node:fs/promises';
 import { basename, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { parse } from 'smol-toml';
+import { parse, stringify } from 'smol-toml';
 
 const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
 const contract = JSON.parse(await readFile(new URL('./environment-contract.json', import.meta.url), 'utf8'));
@@ -73,13 +73,18 @@ export async function initialize({ root = process.cwd(), dir = 'docs', environme
   if(pythonAdditions.length) run('pixi',['add',...common,'--feature',feature,'--pypi','--no-install',...pythonAdditions],root);
   if(!env) run('pixi',['workspace','environment','add',...common,environment,'--feature',feature],root);
   run('pixi',['task','add',...common,'--feature',feature,'--cwd',localDir,'docs-install','npm ci'],root);
-  for(const [name,command] of [['docs','npm run build'],['docs-dev','npm run dev -- --port {{ port }}'],['docs-preview','npm run preview --']]) {
-    run('pixi',['task','add',...common,'--feature',feature,'--cwd',localDir,'--depends-on','docs-install',...(name==='docs-dev'?['--arg','port']:[]),'--',name,command],root);
+  for(const [name,command] of [['docs','npm run build'],['docs-preview','npm run preview --']]) {
+    run('pixi',['task','add',...common,'--feature',feature,'--cwd',localDir,'--depends-on','docs-install','--',name,command],root);
   }
-  // Pixi's task CLI accepts positional names; give our generated argument a default.
+  // Pixi's CLI accepts argument names but not defaults. Append our new task
+  // as a TOML table, without rewriting existing tasks or serializer output.
+  const task = { cmd: 'npm run dev -- --port {{ port }}', cwd: localDir,
+    'depends-on': ['docs-install'], args: [{ arg: 'port', default: '51300' }] };
+  const tasks = { feature: { [feature]: { tasks: { 'docs-dev': task } } } };
   const configured = await readFile(manifest, 'utf8');
-  await writeFile(manifest, configured.replace(/^(docs-dev = .*?)args = \["port"\]/m,
-    '$1args = [{ arg = "port", default = "51300" }]'));
+  const updated = configured + '\n' + stringify(manifest.endsWith('pyproject.toml') ? { tool: { pixi: tasks } } : tasks);
+  parse(updated); // Refuse a conflicting table before touching the manifest.
+  await writeFile(manifest, updated);
   if(install) run('npm',['install','--prefix',site],root);
   console.log(`Documentation created in ${localDir}.\n${install?'':'Run npm install in that directory first.\n'}Start: pixi run -e ${environment} docs-dev\nBuild: pixi run -e ${environment} docs\nCommit the generated configuration, environment.yml, pixi.lock, and npm lockfile.`);
 }

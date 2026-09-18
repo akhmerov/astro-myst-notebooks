@@ -16,6 +16,24 @@ console.log(`Testing packed release in ${root}`);
 if (api) await writeFile(join(root, 'example.py'), '\"\"\"A small Python API.\"\"\"\n\ndef add(a: int, b: int) -> int:\n    \"\"\"Add two integers.\"\"\"\n    return a + b\n');
 // Install and execute the CLI from the artifact, without linking to this checkout.
 run('npm',['exec','--yes',`--package=${archive}`,'--','astro-myst-notebooks','init','--package',archive,...(api?['--api','example']:[])]);
+// Exercise the bundled MyST extensions and notebook loader from the archive.
+await writeFile(join(root, 'docs/src/content/docs/features.md'), [
+  '---', 'title: Packaged authoring', '---', '',
+  '```{code-cell} python', 'answer = 6 * 7', '```', '',
+  'The packaged result is {eval}`answer`.', '',
+  '::::{tab-set}', ':::{tab-item} First', 'Packaged first tab.', ':::',
+  ':::{tab-item} Second', 'Packaged second tab.', ':::', '::::', '',
+  '::::{grid} 1 2', ':::{card} Welcome', ':link: index.md',
+  'Packaged card.', ':::', '::::', '',
+].join('\n'));
+await writeFile(join(root, 'docs/src/content/docs/notebook.ipynb'), JSON.stringify({
+  nbformat: 4, nbformat_minor: 5,
+  metadata: { kernelspec: { name: 'python3', display_name: 'Python 3', language: 'python' } },
+  cells: [
+    { cell_type: 'markdown', metadata: {}, source: '---\ntitle: Packed notebook\n---\n' },
+    { cell_type: 'code', metadata: {}, execution_count: null, outputs: [], source: 'print("Notebook from packed loader")' },
+  ],
+}));
 if (api) await writeFile(join(root,'docs/src/content/docs/api-example.md'),'---\ntitle: API example\n---\n\n```{autodoc} example.add\n```\n');
 if (api) await writeFile(join(root,'docs/src/middleware.ts'), `
 import { defineMiddleware } from 'astro:middleware';
@@ -28,6 +46,11 @@ export const onRequest = defineMiddleware((_context, next) => {
 run('pixi',['run','-e','docs','docs']);
 const html=await readFile(join(root,'docs/dist/index.html'),'utf8');
 assert.match(html,/Hello from Jupyter/);
+const features = await readFile(join(root, 'docs/dist/features/index.html'), 'utf8');
+assert.match(features, /role="tab"/);
+assert.match(features, /class="card/);
+assert.match(features, /jupyter-inline[^>]*>42</);
+assert.match(await readFile(join(root, 'docs/dist/notebook/index.html'), 'utf8'), /Notebook from packed loader/);
 if (api) assert.match(await readFile(join(root,'docs/dist/api-example/index.html'),'utf8'),/Add two integers/);
 const installed=JSON.parse(await readFile(join(root,'docs/node_modules/astro-myst-notebooks/package.json'),'utf8'));
 assert.ok(!Object.keys(installed.dependencies).some(name=>/^thebe|^@jupyter|^@lumino/.test(name)));

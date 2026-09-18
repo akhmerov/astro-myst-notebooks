@@ -16,6 +16,8 @@ export interface InteractiveOptions {
   kernelName?: string;
   startupTimeout?: number;
   wheel?: { project: URL; command?: string[] };
+  /** Copy files or directory contents into absolute browser directories. Files retain their names. */
+  mounts?: { source: URL; target: string }[];
 }
 export interface ExecutionOptions {
   cwd?: URL;

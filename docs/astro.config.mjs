@@ -8,7 +8,13 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'Astro MyST Notebooks',
-      plugins: [notebooks({ execution: { cwd: new URL('../', import.meta.url), timeout: 30 } })],
+      plugins: [notebooks({
+        execution: { cwd: new URL('../', import.meta.url), timeout: 30 },
+        interactive: { mounts: [
+          { source: new URL('./data/measurements/', import.meta.url), target: '/data/measurements' },
+          { source: new URL('./data/description.txt', import.meta.url), target: '/data' },
+        ] },
+      })],
       description: 'Executable MyST documentation for Astro and Starlight.',
       sidebar: [
         { label: 'Overview', slug: '' },

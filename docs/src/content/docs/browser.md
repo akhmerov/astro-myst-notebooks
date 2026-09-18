@@ -59,10 +59,52 @@ environment and added to Python's import path. Its dependencies belong in
 `environment.yml`; compiled wheels are rejected. Include compiled libraries
 through Emscripten-forge.
 
+## Include data files
+
+Use `interactive.mounts` to include files that examples read. Each `source` is
+a local file or directory, resolved from the config file. Each `target` is an
+absolute directory in the browser's filesystem:
+
+```js
+interactive: {
+  mounts: [
+    { source: new URL('./data/measurements/', import.meta.url), target: '/data/measurements' },
+    { source: new URL('./data/description.txt', import.meta.url), target: '/data' },
+  ],
+}
+```
+
+A directory's contents are copied recursively; a single file keeps its name.
+The second mapping therefore creates `/data/description.txt`. These mappings
+are used by this documentation site. This cell reads the same data during the
+native build and in browser Python:
+
+```{code-cell} python
+import csv
+import sys
+from pathlib import Path
+
+data = Path('/data') if sys.platform == 'emscripten' else Path('docs/data')
+print((data / 'description.txt').read_text().strip())
+with (data / 'measurements/readings.csv').open() as stream:
+    total = sum(int(row['value']) for row in csv.DictReader(stream))
+print(f'Measured total: {total}')
+```
+
+Native execution continues to use your project files and `execution.cwd`;
+mounts only populate browser Python. Files are bundled with the published site
+and restored when Python restarts. Changes made in the browser do not update
+your source files. Restart the dev server after changing mounted files.
+
+Missing sources, symbolic links, overlapping file destinations, and invalid
+targets fail the build. `/files` is reserved by JupyterLite, and mounted files
+cannot replace the wheel under `/opt/wheels` when `interactive.wheel` is used.
+
 ## Reuse and refresh environments
 
 The environment cache records the declaration, builder versions, command,
-normalized local-wheel contents, and hashes of the completed output files.
+normalized local-wheel contents, mounted file contents and destinations, and
+hashes of the completed output files.
 Ordinary prose edits reuse the prepared environment. Wheel ZIP timestamps do
 not force a rebuild. Changing environment inputs or finding damaged output
 triggers a new build; a failed refresh leaves the previous cache intact.

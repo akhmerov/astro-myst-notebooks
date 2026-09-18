@@ -58,9 +58,9 @@
     "docs:preview": "cd docs && astro preview",
     "docs:test": "npm run docs:build && tsc --noEmit -p docs && node --test docs/tests/build.test.mjs",
     "docs:test:browser": "playwright test --config docs/playwright.config.ts",
-    "prepack": "npm run build && node scripts/prepare-release.mjs",
-    "release:check": "node scripts/test-package.mjs",
-    "postpack": "node scripts/finish-pack.mjs"
+    "package": "npm run build && node scripts/pack.mjs",
+    "prepack": "node scripts/pack.mjs --guard",
+    "release:check": "node scripts/test-package.mjs"
   },
   "dependencies": {
     "@astrojs/markdown-remark": "^7.3.1",

@@ -75,6 +75,16 @@ reset. Initial browser-runtime downloads require network access.
 pixi run pack
 ```
 
+This runs `npm run package`: it builds the package, asks npm which files belong in
+the archive, and copies them into a temporary staging directory. Dependency
+manifest patches and the production shrinkwrap are written only in that
+directory. A completed archive replaces the previous one; failures leave the
+previous archive and installed dependencies intact.
+
+Use `pixi run pack` or `npm run package`, rather than bare `npm pack`. The latter
+stops with guidance so it cannot accidentally distribute unpatched dependency
+manifests. When publishing, pass the prepared `.tgz` archive to `npm publish`.
+
 The npm archive includes the compiled modules, TypeScript declarations, Python
 adapter, contract JSON, styles, and browser files. Documentation source and
 site output are development assets and are excluded from the archive.
@@ -94,8 +104,10 @@ pixi run npm run release:check -- --api
 
 The release check runs the CLI from the packed archive in an empty temporary
 consumer, installs its dependencies, and builds at `/` and `/manual/`. It also
-checks both default and explicit dev-port arguments. The temporary consumer is
-retained for inspection. Run this check before publishing a release.
+checks notebook input, tabs and cards, inline Python results, and both default
+and explicit dev-port arguments. With `--api`, it also checks Python API
+documentation. The temporary consumer is retained for inspection. Run this
+check before publishing a release.
 
 To initialize another project from an unpublished archive, run from that
 project's root (use an absolute archive path):
@@ -112,9 +124,11 @@ compile Jupyter workers. Exact bundled package identities and license notices
 are included in `dist/notebooks/browser/`.
 
 The tested MyST dependency graph is bundled into the npm archive. This carries
-patched transitive versions and matching dependency declarations to consumers, where npm would otherwise ignore our
-root overrides. The small manifest patches are recorded in `dist/DEPENDENCY-PATCHES.json`;
-a production shrinkwrap is generated during packing. Review
+patched transitive versions and matching dependency declarations to consumers,
+where npm would otherwise ignore our root overrides. The small manifest
+patches are checked against both installed manifests and the lockfile, then
+recorded in the archive's `dist/DEPENDENCY-PATCHES.json`. A production shrinkwrap
+is generated alongside them in staging. Review
 both development and fresh-consumer audits; browser libraries that ship their
 own compiled code need separate scrutiny.
 

@@ -21,7 +21,7 @@ install = "npm ci"
 build = { cmd = "npm run build", depends-on = ["install"] }
 check = { cmd = "npm run check", depends-on = ["install"] }
 test = { cmd = "npm test", depends-on = ["install"] }
-pack = { cmd = "npm pack", depends-on = ["install"] }
+pack = { cmd = "npm run package", depends-on = ["install"] }
 docs = { cmd = "npm run docs:build", depends-on = ["install"] }
 docs-dev = { cmd = "npm run docs:dev -- --port {{ port }}", args = [{ arg = "port", default = "51300" }], depends-on = ["install"] }
 docs-preview = { cmd = "npm run docs:preview --", depends-on = ["install"] }

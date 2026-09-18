@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { basename, join, posix, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InteractiveOptions } from './types.js';
 
@@ -20,12 +20,47 @@ async function artifacts(root: string, directory = root): Promise<Artifact[]> {
   return result;
 }
 
+async function prepareMounts(options: InteractiveOptions) {
+  const mounts = [];
+  const destinations = new Set<string>();
+  for (const { source, target } of options.mounts ?? []) {
+    const path = resolve(fileURLToPath(source));
+    if (path.includes(':')) throw new Error(`Xeus mount source cannot contain a colon: ${path}`);
+    if (!target.startsWith('/') || /[:\\\0]/.test(target) || target.split('/').includes('..')) {
+      throw new Error(`Browser mount target must be an absolute POSIX directory without '..': ${target}`);
+    }
+    const directory = posix.normalize(target);
+    // Xeus reserves this prefix for its own content manager.
+    if (directory.startsWith('/files')) throw new Error(`Browser mount target is reserved by JupyterLite: ${target}`);
+    const info = await lstat(path).catch(() => { throw new Error(`Cannot read browser mount source: ${path}`); });
+    let files: Artifact[];
+    if (info.isDirectory()) files = await artifacts(path);
+    else if (info.isFile()) files = [{ path: basename(path), sha256: digest(await readFile(path)) }];
+    else throw new Error(`Browser mount source must be a regular file or directory: ${path}`);
+    for (const file of files) {
+      const destination = posix.join(directory, file.path);
+      if (options.wheel && (destination === '/opt/wheels' || destination.startsWith('/opt/wheels/') || '/opt/wheels'.startsWith(destination + '/'))) {
+        throw new Error(`Browser mount overlaps the package wheel: ${destination}`);
+      }
+      for (const existing of destinations) {
+        if (destination === existing || destination.startsWith(existing + '/') || existing.startsWith(destination + '/')) {
+          throw new Error(`Overlapping browser mount files: ${existing} and ${destination}`);
+        }
+      }
+      destinations.add(destination);
+    }
+    mounts.push({ source: path, target: directory, files });
+  }
+  return mounts;
+}
+
 /** A completed, verified environment is reused until inputs change or refresh is requested. */
 export async function buildEnvironment(options: InteractiveOptions, { root, cache, python = 'python', log = console.info }: {
   root: URL; cache: URL; python?: string; log?: (message: string) => void;
 }): Promise<{ directory: string; wheelPath?: string }> {
   const environment = options.environment ?? new URL('environment.yml', root);
   const spec = await readFile(environment).catch(() => { throw new Error(`Missing browser environment ${fileURLToPath(environment)}. Run astro-myst-notebooks init, or set interactive.environment.`); });
+  const mounts = await prepareMounts(options);
   const versions = (await run(python, ['-c', 'import importlib.metadata as m,json; print(json.dumps({p:m.version(p) for p in ["jupyterlite-core","jupyterlite-xeus"]},sort_keys=True))'])).stdout.trim();
   const [command, ...args] = options.command ?? ['jupyter', 'lite'];
   if (!command) throw new Error('The browser build command must not be empty');
@@ -56,7 +91,8 @@ export async function buildEnvironment(options: InteractiveOptions, { root, cach
       wheelHash = (await run(python, ['-c', 'import hashlib,zipfile,sys; z=zipfile.ZipFile(sys.argv[1]); h=hashlib.sha256(); [(h.update(n.encode()),h.update(b"\\0"),h.update(z.read(n))) for n in sorted(z.namelist())]; print(h.hexdigest())', join(wheels, name)])).stdout.trim();
       wheelPath = `/opt/wheels/${name}`;
     }
-    const inputs = { format: 1, spec: spec.toString(), versions, command: [command, ...args], wheelHash, wheelPath };
+    const inputs = { format: 2, spec: spec.toString(), versions, command: [command, ...args], wheelHash, wheelPath,
+      mounts: mounts.map(({ target, files }) => ({ target, files })) };
     const key = digest(JSON.stringify(inputs));
     const destination = join(base, key);
     if (!options.refresh) {
@@ -77,6 +113,7 @@ export async function buildEnvironment(options: InteractiveOptions, { root, cach
     await run(command, [...args, 'build', `--XeusAddon.environment_file=${fileURLToPath(environment)}`,
       `--output-dir=${site}`, `--lite-dir=${lite}`,
       ...(wheels ? [`--XeusAddon.mounts=${wheels}:/opt/wheels`] : []),
+      ...mounts.map(({ source, target }) => `--XeusAddon.mounts=${source}:${target}`),
     ], { cwd: fileURLToPath(root), maxBuffer: 20 * 1024 * 1024 });
     await stat(join(site, 'xeus'));
     await writeFile(join(build, 'build.json'), JSON.stringify({ inputs, artifacts: await artifacts(site) }));
