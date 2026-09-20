@@ -9,15 +9,21 @@ integration owns rendering, routes, caches, and browser assets.
 
 ## Create the site
 
-With Node and Pixi available, run from the project root:
+The package is not published on npm yet. Download and extract the package
+artifact from a successful [GitHub Actions run](https://github.com/akhmerov/astro-myst-notebooks/actions/workflows/check.yml)
+(requires GitHub sign-in), or build it with `pixi run pack` in a checkout of
+this repository. With Node and Pixi available, run from your project's root:
 
 ```sh
-npx astro-myst-notebooks init --dir docs --pixi-environment docs
+archive=/absolute/path/to/astro-myst-notebooks-0.3.0.tgz
+npm exec --yes --package="$archive" -- astro-myst-notebooks init --package "$archive"
 pixi run -e docs docs-dev
 ```
 
-The registry command requires a published release. While 0.3 is being prepared,
-use the [packed-release workflow](development.md#test-an-unpublished-release).
+Keep the archive at a stable path for later `npm ci` runs. Add `--api mypackage`
+to include Python API documentation. See the
+[packed-release workflow](development.md#test-an-unpublished-release) for checks
+you can run before adopting an archive.
 
 The initializer writes the Astro and content configuration, an executable
 welcome page, and `environment.yml`. It adds the build tools and documentation

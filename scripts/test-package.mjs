@@ -1,7 +1,8 @@
-import { mkdtemp, readFile, writeFile, mkdir } from 'node:fs/promises';
+import { access, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 const pkg = JSON.parse(await readFile('package.json','utf8'));
 const archive = resolve(`astro-myst-notebooks-${pkg.version}.tgz`);
@@ -53,6 +54,16 @@ assert.match(features, /jupyter-inline[^>]*>42</);
 assert.match(await readFile(join(root, 'docs/dist/notebook/index.html'), 'utf8'), /Notebook from packed loader/);
 if (api) assert.match(await readFile(join(root,'docs/dist/api-example/index.html'),'utf8'),/Add two integers/);
 const installed=JSON.parse(await readFile(join(root,'docs/node_modules/astro-myst-notebooks/package.json'),'utf8'));
+const packageRoot = join(root, 'docs/node_modules/astro-myst-notebooks');
+const exportTargets = value => typeof value === 'string' ? [value] : Object.values(value).flatMap(exportTargets);
+for (const path of [...exportTargets(installed.exports), ...Object.values(installed.bin),
+  'LICENSE', 'npm-shrinkwrap.json', 'dist/execute.py', 'dist/environment-contract.json',
+  'dist/notebooks/style.css', 'dist/notebooks/browser/LICENSES.txt',
+  'dist/notebooks/browser/DEPENDENCIES.json', 'dist/DEPENDENCY-PATCHES.json']) {
+  await access(join(packageRoot, path));
+}
+assert.equal(installed.scripts, undefined, 'archive must not run checkout-only build hooks');
+assert.equal(installed.devDependencies, undefined, 'archive must not require development dependencies');
 assert.ok(!Object.keys(installed.dependencies).some(name=>/^thebe|^@jupyter|^@lumino/.test(name)));
 const modules=JSON.parse(await readFile(join(root,'docs/package-lock.json'),'utf8')).packages;
 assert.ok(!Object.keys(modules).some(name=>/node_modules\/(thebe-lite|@jupyterlite\/pyodide-kernel)$/.test(name)));
@@ -61,4 +72,8 @@ run('pixi',['run','-e','docs','--dry-run','docs-dev','51559']);
 // Rebuild under a prefix, exercising the same cached environment.
 run('pixi',['run','-e','docs','npm','--prefix','docs','run','build','--','--base','/manual/']);
 assert.match(await readFile(join(root,'docs/dist/index.html'),'utf8'),/\/manual\/_astro\//);
+if (process.argv.includes('--browser')) {
+  run(process.execPath, [fileURLToPath(new URL('./check-consumer-browser.mjs', import.meta.url)),
+    join(root, 'docs'), process.env.DOCS_PORT ?? '51488', '/manual/']);
+}
 console.log(`Packed release passed. Consumer retained for browser inspection: ${root}`);

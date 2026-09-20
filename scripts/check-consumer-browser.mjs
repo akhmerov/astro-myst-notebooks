@@ -9,8 +9,9 @@ const base=process.argv[4] ?? '/manual/';
 const require=createRequire(join(root,'package.json'));
 const {preview}=await import(pathToFileURL(require.resolve('astro')).href);
 const server=await preview({root,base,server:{host:'127.0.0.1',port}});
-const browser=await chromium.launch({executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE});
+let browser;
 try {
+  browser=await chromium.launch({executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE});
   const page=await browser.newPage();
   const errors=[];
   page.on('pageerror',error=>errors.push(error.message));
@@ -32,4 +33,4 @@ try {
   await notebook.locator('.jupyter-live-output').filter({hasText:'Recovered'}).waitFor({timeout:60000});
   assert.deepEqual(errors,[]);
   console.log(`Packed consumer browser execution and infinite-loop reset passed at ${base}`);
-} finally {await browser.close();await server.stop();}
+} finally {await browser?.close();await server.stop();}

@@ -4,21 +4,35 @@ MyST documents, native Jupyter execution, rich MIME outputs, browser-local
 Python, and text source maps for Astro and Starlight. Extracted from Pymablock;
 this is an experimental package, not a published release.
 
+[![Check and package](https://github.com/akhmerov/astro-myst-notebooks/actions/workflows/check.yml/badge.svg)](https://github.com/akhmerov/astro-myst-notebooks/actions/workflows/check.yml)
+
 ## Add documentation to a project
 
-The Starlight preset manages MyST rendering, Jupyter execution, references, and
-the prepared Xeus browser environment. Its initializer creates a working site
-and Pixi tasks:
+The package is not published on npm yet. Download the package artifact from a
+successful [Check and package run](https://github.com/akhmerov/astro-myst-notebooks/actions/workflows/check.yml)
+(GitHub sign-in required), then extract the artifact ZIP to obtain the `.tgz`
+and `SHA256SUMS`. Alternatively, build it from source:
 
 ```sh
-npx astro-myst-notebooks init --dir docs --pixi-environment docs
+git clone https://github.com/akhmerov/astro-myst-notebooks.git
+cd astro-myst-notebooks
+pixi run pack
+```
+
+With Node and Pixi available, run the initializer from the project you want to
+document. Use the absolute path to the downloaded or locally built archive:
+
+```sh
+archive=/absolute/path/to/astro-myst-notebooks-0.3.0.tgz
+npm exec --yes --package="$archive" -- astro-myst-notebooks init --package "$archive"
 pixi run -e docs docs-dev
 ```
 
-Add `--api mypackage` to include Python API documentation. Version 0.3 is
-prepared in this source repository; registry publication is pending. See the
-[unpublished release workflow](docs/src/content/docs/development.md#test-an-unpublished-release)
-for testing its archive.
+The Starlight preset manages MyST rendering, Jupyter execution, references, and
+the prepared Xeus browser environment. The initializer creates a working site
+and Pixi tasks. Add `--api mypackage` to include Python API documentation, or
+`--dir docs --pixi-environment docs` to select the site directory and environment.
+Keep the archive at a stable path: the generated npm lockfile refers to it.
 
 ## Read and run the documentation
 
@@ -51,11 +65,14 @@ pixi run test
 pixi run check
 pixi run docs-test
 pixi run pack
+pixi run npm run release:check -- --api --browser
 ```
 
 `pixi run pack` (or `npm run package`) prepares the archive in an isolated staging
 directory, including its dependency fixes, without modifying `node_modules`.
 Bare `npm pack` directs you to this packaging command.
+GitHub Actions runs the package, documentation, browser, and fresh-consumer
+checks before uploading an archive and checksum. It does not publish to npm.
 
 `docs-test` builds the site, checks its TypeScript, and verifies rendered output,
 links, included-source origins, and browser assets. Use

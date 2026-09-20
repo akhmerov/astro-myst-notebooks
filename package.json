@@ -4,6 +4,14 @@
   "type": "module",
   "description": "MyST documents, Jupyter execution, source maps, and browser notebooks for Astro and Starlight",
   "license": "BSD-2-Clause",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/akhmerov/astro-myst-notebooks.git"
+  },
+  "homepage": "https://github.com/akhmerov/astro-myst-notebooks#readme",
+  "bugs": {
+    "url": "https://github.com/akhmerov/astro-myst-notebooks/issues"
+  },
   "engines": {
     "node": ">=22.12.0"
   },

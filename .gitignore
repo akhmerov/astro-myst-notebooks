@@ -7,3 +7,5 @@ test-results/
 playwright-report/
 
 .notebooks-pack-*/
+.jupyterlite.doit.db*
+SHA256SUMS

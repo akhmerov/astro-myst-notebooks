@@ -1,0 +1,65 @@
+name: Check and package
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: prefix-dev/setup-pixi@a09b6247153796b190642a2b53fac4241043cf6f # v0.10.0
+        with:
+          pixi-version: v0.81.0
+          locked: true
+      - name: Test compiled package
+        run: pixi run test
+      - name: Check types
+        run: pixi run check
+      - name: Build and check documentation
+        run: pixi run docs-test
+      - name: Install Chromium
+        run: pixi run npx playwright install --with-deps chromium
+      - name: Test browser notebooks
+        run: pixi run npm run docs:test:browser
+      - name: Build distribution
+        run: pixi run pack
+      - name: Test archive in a fresh Starlight consumer
+        run: pixi run npm run release:check -- --browser
+      - name: Test archive with Python API documentation
+        run: pixi run npm run release:check -- --api --browser
+      - name: Verify generated files stay out of Git
+        run: git diff --exit-code
+      - name: Checksum distribution
+        run: sha256sum astro-myst-notebooks-*.tgz > SHA256SUMS
+      - name: Upload tested distribution
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: astro-myst-notebooks-${{ github.sha }}
+          path: |
+            astro-myst-notebooks-*.tgz
+            SHA256SUMS
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+      - name: Upload browser failure details
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: browser-failure-details
+          path: docs/test-results/
+          if-no-files-found: ignore
+          retention-days: 7

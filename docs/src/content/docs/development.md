@@ -98,16 +98,25 @@ The local site does not exercise every optional provider or Griffe adapter.
 
 ```sh
 pixi run pack
-pixi run npm run release:check
-pixi run npm run release:check -- --api
+pixi run npm run release:check -- --browser
+pixi run npm run release:check -- --api --browser
 ```
 
 The release check runs the CLI from the packed archive in an empty temporary
 consumer, installs its dependencies, and builds at `/` and `/manual/`. It also
 checks notebook input, tabs and cards, inline Python results, and both default
 and explicit dev-port arguments. With `--api`, it also checks Python API
-documentation. The temporary consumer is retained for inspection. Run this
-check before publishing a release.
+documentation. `--browser` also starts the built site under `/manual/`, executes
+Python in Chromium, and checks recovery from an infinite loop. Install Chromium
+as described above or set `PLAYWRIGHT_CHROMIUM_EXECUTABLE`. The temporary consumer
+is retained for inspection. Run this check before sharing an archive.
+
+GitHub Actions runs these checks for pushes and pull requests. Successful runs
+provide an artifact named `astro-myst-notebooks-<commit>`, containing the tested
+`.tgz` and `SHA256SUMS`. Artifact downloads require GitHub sign-in and remain
+available for 30 days; keep a local copy for consumers that depend on one.
+To verify a downloaded archive, run `sha256sum -c SHA256SUMS` in the extracted
+artifact directory. The workflow has no npm publication step.
 
 To initialize another project from an unpublished archive, run from that
 project's root (use an absolute archive path):
