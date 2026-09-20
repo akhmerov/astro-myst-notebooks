@@ -38,9 +38,10 @@ try {
     const tag = element.querySelector('.katex-tag');
     if (!tag) throw new Error('Missing styled equation number');
     return { position: getComputedStyle(tag).position, tagLeft: tag.getBoundingClientRect().left,
-      formulaRight: Math.max(...Array.from(element.querySelectorAll(':scope > .base'), node => node.getBoundingClientRect().right)) };
+      formulaRight: Math.max(...Array.from(element.querySelectorAll(':scope > .katex-base'), node => node.getBoundingClientRect().right)) };
   });
   assert.equal(equation.position, 'absolute', 'equation numbering must use the installed KaTeX stylesheet');
+  assert.ok(Number.isFinite(equation.formulaRight), 'equation formula must have measurable bounds');
   assert.ok(equation.tagLeft > equation.formulaRight + 8, 'equation number must be separate from the formula');
   assert.deepEqual(errors,[]);
   console.log(`Packed consumer browser execution and infinite-loop reset passed at ${base}`);
