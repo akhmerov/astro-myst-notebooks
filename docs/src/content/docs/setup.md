@@ -9,9 +9,10 @@ integration owns rendering, routes, caches, and browser assets.
 
 ## Create the site
 
-The package is not published on npm yet. Build it with `pixi run pack` in a
-checkout of the [source repository](https://github.com/akhmerov/astro-myst-notebooks).
-With Node and Pixi available, run from your project's root:
+The package is not published on npm yet. Download and extract the package
+artifact from a successful [GitHub Actions run](https://github.com/akhmerov/astro-myst-notebooks/actions/workflows/check.yml)
+(requires GitHub sign-in), or build it with `pixi run pack` in a checkout of
+this repository. With Node and Pixi available, run from your project's root:
 
 ```sh
 archive=/absolute/path/to/astro-myst-notebooks-0.3.0.tgz

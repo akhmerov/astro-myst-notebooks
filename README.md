@@ -4,10 +4,14 @@ MyST documents, native Jupyter execution, rich MIME outputs, browser-local
 Python, and text source maps for Astro and Starlight. Extracted from Pymablock;
 this is an experimental package, not a published release.
 
+[![Check and package](https://github.com/akhmerov/astro-myst-notebooks/actions/workflows/check.yml/badge.svg)](https://github.com/akhmerov/astro-myst-notebooks/actions/workflows/check.yml)
+
 ## Add documentation to a project
 
-The package is not published on npm yet. Build its installable archive from
-source with Pixi:
+The package is not published on npm yet. Download the package artifact from a
+successful [Check and package run](https://github.com/akhmerov/astro-myst-notebooks/actions/workflows/check.yml)
+(GitHub sign-in required), then extract the artifact ZIP to obtain the `.tgz`
+and `SHA256SUMS`. Alternatively, build it from source:
 
 ```sh
 git clone https://github.com/akhmerov/astro-myst-notebooks.git
@@ -16,7 +20,7 @@ pixi run pack
 ```
 
 With Node and Pixi available, run the initializer from the project you want to
-document. Use the absolute path to the built archive:
+document. Use the absolute path to the downloaded or locally built archive:
 
 ```sh
 archive=/absolute/path/to/astro-myst-notebooks-0.3.0.tgz
@@ -67,9 +71,8 @@ pixi run npm run release:check -- --api --browser
 `pixi run pack` (or `npm run package`) prepares the archive in an isolated staging
 directory, including its dependency fixes, without modifying `node_modules`.
 Bare `npm pack` directs you to this packaging command.
-CI is currently disabled. An inactive [GitHub Actions template](.github/templates/check.yml)
-contains the package, documentation, browser, and fresh-consumer checks, followed
-by archive and checksum upload. It has no npm publication step.
+GitHub Actions runs the package, documentation, browser, and fresh-consumer
+checks before uploading an archive and checksum. It does not publish to npm.
 
 `docs-test` builds the site, checks its TypeScript, and verifies rendered output,
 links, included-source origins, and browser assets. Use

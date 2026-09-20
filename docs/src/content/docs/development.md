@@ -111,19 +111,12 @@ Python in Chromium, and checks recovery from an infinite loop. Install Chromium
 as described above or set `PLAYWRIGHT_CHROMIUM_EXECUTABLE`. The temporary consumer
 is retained for inspection. Run this check before sharing an archive.
 
-CI is currently disabled. The repository includes an inactive workflow at
-`.github/templates/check.yml`. To enable it later, move it to
-`.github/workflows/check.yml` and push with credentials that permit workflow
-changes. It runs these checks before uploading a `.tgz` and `SHA256SUMS`, and
-has no npm publication step. Artifacts expire after 30 days; keep a local copy
-for consumers that depend on one.
-
-For a locally built archive, generate and verify a checksum with:
-
-```sh
-sha256sum astro-myst-notebooks-*.tgz > SHA256SUMS
-sha256sum -c SHA256SUMS
-```
+GitHub Actions runs these checks for pushes and pull requests. Successful runs
+provide an artifact named `astro-myst-notebooks-<commit>`, containing the tested
+`.tgz` and `SHA256SUMS`. Artifact downloads require GitHub sign-in and remain
+available for 30 days; keep a local copy for consumers that depend on one.
+To verify a downloaded archive, run `sha256sum -c SHA256SUMS` in the extracted
+artifact directory. The workflow has no npm publication step.
 
 To initialize another project from an unpublished archive, run from that
 project's root (use an absolute archive path):
