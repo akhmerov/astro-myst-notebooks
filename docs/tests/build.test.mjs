@@ -41,6 +41,23 @@ test('the documentation renders real Jupyter results and includes hidden setup',
   assert.ok(nodes.some(node => node.properties.id === 'triangular-sum'));
 });
 
+test('the shipped stylesheet matches the rendered KaTeX and inline output markup', async () => {
+  const tree = pages.get('walkthrough');
+  const nodes = elements(tree);
+  const links = nodes.filter(node => node.tagName === 'link' && node.properties.rel?.includes('stylesheet'));
+  assert.ok(links.length);
+  const css = (await Promise.all(links.map(link => readFile(new URL(link.properties.href.slice(base.length + 1), output), 'utf8')))).join('\n');
+  // Equation numbers are positioned by the KaTeX stylesheet; a KaTeX version
+  // mismatch between the renderer and the shipped CSS leaves them inline.
+  const equation = nodes.find(node => node.properties.id === 'triangular-sum');
+  const tag = elements(equation).find(node => /(^|-)tag$/.test(node.properties.className?.join(' ') ?? ''));
+  assert.ok(tag, 'the labelled equation carries a number');
+  const selector = `.katex-display>.katex>.katex-html>.${tag.properties.className.join('.')}`;
+  assert.match(css, new RegExp(`${selector.replace(/[.>]/g, '\\$&')}\\{[^}]*position:absolute`));
+  // {eval} results must not inherit the block output box.
+  assert.match(css, /\.jupyter-output\.jupyter-inline\{[^}]*display:inline/);
+});
+
 test('layout constructs render on the authoring page', () => {
   const nodes = elements(pages.get('authoring'));
   const diagram = nodes.find(node => node.tagName === 'pre' && node.properties.className?.includes('mermaid'));

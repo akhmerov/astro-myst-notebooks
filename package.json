@@ -110,6 +110,9 @@
     "myst-transforms": {
       "katex": "^0.16.47"
     },
+    "rehype-katex": {
+      "katex": "$katex"
+    },
     "jest-junit": {
       "uuid": "^11.1.1"
     }
