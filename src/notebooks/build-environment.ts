@@ -57,7 +57,7 @@ async function prepareMounts(options: InteractiveOptions) {
 /** A completed, verified environment is reused until inputs change or refresh is requested. */
 export async function buildEnvironment(options: InteractiveOptions, { root, cache, python = 'python', log = console.info }: {
   root: URL; cache: URL; python?: string; log?: (message: string) => void;
-}): Promise<{ directory: string; wheelPath?: string }> {
+}): Promise<{ directory: string; version: string; wheelPath?: string }> {
   const environment = options.environment ?? new URL('environment.yml', root);
   const spec = await readFile(environment).catch(() => { throw new Error(`Missing browser environment ${fileURLToPath(environment)}. Run astro-myst-notebooks init, or set interactive.environment.`); });
   const mounts = await prepareMounts(options);
@@ -101,7 +101,7 @@ export async function buildEnvironment(options: InteractiveOptions, { root, cach
         const current = await artifacts(join(destination, 'site'));
         if (JSON.stringify(saved.artifacts) === JSON.stringify(current)) {
           log('[notebooks] Reusing browser environment');
-          return { directory: join(destination, 'site'), wheelPath };
+          return { directory: join(destination, 'site'), version: digest(JSON.stringify(current)), wheelPath };
         }
       } catch { /* Absent or incomplete caches are rebuilt below. */ }
     }
@@ -116,7 +116,8 @@ export async function buildEnvironment(options: InteractiveOptions, { root, cach
       ...mounts.map(({ source, target }) => `--XeusAddon.mounts=${source}:${target}`),
     ], { cwd: fileURLToPath(root), maxBuffer: 20 * 1024 * 1024 });
     await stat(join(site, 'xeus'));
-    await writeFile(join(build, 'build.json'), JSON.stringify({ inputs, artifacts: await artifacts(site) }));
+    const built = await artifacts(site);
+    await writeFile(join(build, 'build.json'), JSON.stringify({ inputs, artifacts: built }));
     // Keep only the completed site and its provenance; mounts are included in it.
     await rm(lite, { recursive: true, force: true });
     if (wheels) await rm(wheels, { recursive: true, force: true });
@@ -126,6 +127,6 @@ export async function buildEnvironment(options: InteractiveOptions, { root, cach
     try { await rename(build, destination); }
     catch (error) { await rename(previous, destination).catch(() => {}); throw error; }
     await rm(previous, { recursive: true, force: true });
-    return { directory: join(destination, 'site'), wheelPath };
+    return { directory: join(destination, 'site'), version: digest(JSON.stringify(built)), wheelPath };
   } finally { if (work) await rm(work, { recursive: true, force: true }); }
 }

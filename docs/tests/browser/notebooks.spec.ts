@@ -126,7 +126,7 @@ test('the authored notebook runs in real browser Python and resets with edits pr
 test('source selections are ready at page load and activation waits for its controls', async ({ page }) => {
   let release!: () => void;
   const loaded = new Promise<void>(resolve => { release = resolve; });
-  await page.route('**/notebooks/element.js', async route => { await loaded; await route.continue(); });
+  await page.route('**/notebooks/*/element.js', async route => { await loaded; await route.continue(); });
   try {
     await page.goto('walkthrough/');
     expect(await page.evaluate(() => typeof window.mystSourceMap?.resolve)).toBe('function');
@@ -138,14 +138,14 @@ test('source selections are ready at page load and activation waits for its cont
 });
 
 test('a failed start retries interactivity and navigation clears the title controls', async ({ page }) => {
-  await page.route('**/thebe/index.js', route => route.abort());
+  await page.route('**/thebe/*/index.js', route => route.abort());
   await page.goto('walkthrough/');
   const controls = page.locator('[data-notebook-toolbar] [data-thebe-controls]');
   await page.locator('.jupyter-cell').first().getByRole('button', { name: 'Enable interactivity', exact: true }).click();
   await expect(controls).toHaveAttribute('data-state', 'error');
   await expect(page.locator('.cell-interactivity-status')).toContainText('Could not download');
   await expect(page.locator('.jupyter-outputs').filter({ hasText: 'Sum: 36' })).toBeVisible();
-  await page.unroute('**/thebe/index.js');
+  await page.unroute('**/thebe/*/index.js');
   await page.locator('.jupyter-cell').first().getByRole('button', { name: 'Enable interactivity', exact: true }).click();
   await expect(controls).toHaveAttribute('data-state', 'ready', { timeout: 150000 });
   await controls.getByRole('button', { name: 'Run all', exact: true }).click();

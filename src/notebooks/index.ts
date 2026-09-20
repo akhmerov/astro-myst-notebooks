@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
+import { createHash } from 'node:crypto';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import { remarkMyst, mystRehype, rehypeDocumentBase, rehypeMathErrors } from '../myst.mjs';
 import { remarkReferences } from '../references.mjs';
@@ -68,24 +69,28 @@ export default function notebooks(options: Options = {}): AstroIntegration {
         injectScript('page-ssr', `import ${JSON.stringify(fileURLToPath(new URL('./style.css', import.meta.url)))}; import ${JSON.stringify(require.resolve('katex/dist/katex.min.css'))};`);
         injectScript('page', `import ${JSON.stringify(fileURLToPath(new URL('./source-selection.js', import.meta.url)))};`);
         const prefix = sitePrefix(config);
-        const runtimeBase = `${prefix}/notebooks`;
+        const runtimeVersion: string = JSON.parse(readFileSync(new URL('./browser/version.json', import.meta.url), 'utf8'));
+        const runtimeDestination = `notebooks/${runtimeVersion}`;
+        const runtimeBase = `${prefix}/${runtimeDestination}`;
         const runtime = posix(fileURLToPath(new URL('./browser/', import.meta.url)));
-        const targets: CopyTarget[] = [{ src: `${runtime}*.js`, dest: 'notebooks', rename: { stripBase: true } }];
+        const targets: CopyTarget[] = [{ src: `${runtime}*.js`, dest: runtimeDestination, rename: { stripBase: true } }];
         injectScript('page', `const runtimeBase = ${JSON.stringify(runtimeBase)}; import(/* @vite-ignore */ runtimeBase + '/client.js');`);
         if (interactive && (command === 'build' || command === 'dev')) {
           const settings = options.interactive || {};
           if ('xeus' in settings || 'packages' in settings) throw new Error('Use interactive.environment for the Xeus environment; Pyodide and interactive.xeus were removed in 0.3');
           const environment = await buildEnvironment(settings, { root: config.root, cache: paths.cache, python: execution.python, log: message => logger.info(message) });
+          const assetVersion = createHash('sha256').update(runtimeVersion + environment.version).digest('hex').slice(0, 20);
+          const assetDestination = `thebe/${assetVersion}`;
           const browser: BrowserOptions = {
-            assetBase: `${prefix}/thebe`, setup: settings.setup ?? '',
+            assetBase: `${prefix}/${assetDestination}`, setup: settings.setup ?? '',
             kernelName: settings.kernelName ?? 'xpython', startupTimeout: settings.startupTimeout ?? 120000,
             wheelPath: environment.wheelPath,
           };
           const assets = posix(fileURLToPath(new URL('./browser/assets/', import.meta.url)));
           const xeus = join(environment.directory, 'xeus');
           const depth = relative(fileURLToPath(config.root), xeus).split(sep).filter(part => part && part !== '..').length;
-          targets.push({ src: `${assets}*`, dest: 'thebe', rename: { stripBase: true } },
-            { src: posix(xeus), dest: 'thebe/xeus', rename: { stripBase: depth } });
+          targets.push({ src: `${assets}*`, dest: assetDestination, rename: { stripBase: true } },
+            { src: posix(xeus), dest: `${assetDestination}/xeus`, rename: { stripBase: depth } });
           injectScript('page', `const notebookBase = ${JSON.stringify(runtimeBase)}; import(/* @vite-ignore */ notebookBase + '/element.js').then(({ defineNotebooks }) => defineNotebooks(${JSON.stringify(browser)}));`);
         }
         updateConfig({ vite: { plugins: viteStaticCopy({ targets }) } });

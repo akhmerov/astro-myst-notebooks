@@ -1,6 +1,7 @@
 import { build } from 'esbuild';
 import { mkdir, copyFile, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 const require = createRequire(import.meta.url);
 const directory = 'dist/notebooks/browser';
@@ -17,14 +18,31 @@ const result = await build({
     build.onLoad({filter:/.*/,namespace:'raw-text'}, async args => ({contents:await readFile(args.path,'utf8'),loader:'text'}));
   } }],
 });
+const cachePrelude = (await build({
+  entryPoints: ['src/notebooks/worker-cache.ts'], bundle: true, write: false,
+  format: 'iife', platform: 'browser', target: 'es2022', minify: true,
+})).outputFiles[0].text;
 for (const [name, subdir, pattern] of [
   ['thebe', 'lib', /\.(js|css|txt)$/],
   ['@jupyterlite/xeus', 'lib', /\.worker\.js$/],
   ['@emscripten-forge/mambajs-core', 'lib', /\.wasm$/],
 ]) {
   const root = dirname(require.resolve(`${name}/package.json`));
-  for (const file of await readdir(join(root, subdir))) if (pattern.test(file)) await copyFile(join(root,subdir,file),`${directory}/assets/${file}`);
+  for (const file of await readdir(join(root, subdir))) if (pattern.test(file)) {
+    const source = join(root, subdir, file);
+    const target = `${directory}/assets/${file}`;
+    if (name === '@jupyterlite/xeus') await writeFile(target, cachePrelude + '\n' + await readFile(source, 'utf8'));
+    else await copyFile(source, target);
+  }
 }
+const runtimeHash = createHash('sha256');
+for (const folder of ['', 'assets/']) {
+  for (const name of (await readdir(directory + '/' + folder)).sort()) {
+    if (folder === '' && !name.endsWith('.js')) continue;
+    runtimeHash.update(folder + name + '\0').update(await readFile(directory + '/' + folder + name));
+  }
+}
+await writeFile(`${directory}/version.json`, JSON.stringify(runtimeHash.digest('hex').slice(0, 20)));
 // Include licenses and exact package identities for all bundled code, not only direct dependencies.
 const roots = new Set(Object.keys(result.metafile.inputs).filter(p=>p.includes('node_modules/') && !p.startsWith('(disabled):') && !p.startsWith('raw-text:')).map(p => {
   const pieces = p.split('node_modules/');

@@ -8,6 +8,33 @@ prepares the environment and publishes it with the site. Readers download that
 environment when they enable interactivity. Thebe provides editors,
 controls, and Jupyter MIME rendering.
 
+## Downloads and caching
+
+Opening a page loads its small controls and any JavaScript needed to display
+authored plots or diagrams. Python, its packages, editors, and execution code
+load only after a reader chooses **Enable interactivity**. Activation never
+runs the authored cells automatically.
+
+The framework and environment use content-versioned asset URLs. Changing the
+runtime, packages, local wheel, or mounted files gives the changed environment
+a new URL, preventing stale code from being reused after a deployment.
+
+On HTTPS sites, downloaded Python binaries and package archives are retained
+in the browser's Cache API and reused across kernel restarts and page visits.
+Only successful requests within the versioned runtime directory are cached;
+ordinary network requests made by Python code are unaffected. Each site's
+cache retains its current environment and one previous version. Failed
+downloads and responses marked `no-store` are not retained. If storage is
+disabled, full, or evicted, execution falls back to ordinary downloads.
+No site-wide service worker is installed, and no assets are prefetched.
+
+JavaScript uses the browser's normal HTTP cache. Hosts that support custom
+headers can serve `/notebooks/*` and `/thebe/*` beneath the site's deployment
+prefix with `Cache-Control: public, max-age=31536000, immutable`, because their
+URLs include content versions. Keep HTML revalidated so readers receive the
+latest asset URLs. These download caches do not reduce the site's storage
+requirements on its host.
+
 ## Declare browser packages
 
 The initializer creates `environment.yml` in the Astro root:

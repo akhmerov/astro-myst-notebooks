@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, access } from 'node:fs/promises';
+import { readFile, readdir, access } from 'node:fs/promises';
 import { fromHtml } from 'hast-util-from-html';
 import { visit } from 'unist-util-visit';
 
@@ -135,7 +135,11 @@ test('all local page links and fragment targets exist under the deployment base'
 });
 
 test('the published site includes the browser runtime and source-selection code', async () => {
-  for (const asset of ['thebe/index.js', 'thebe/thebe.css', 'thebe/comlink.worker.js', 'thebe/coincident.worker.js', 'thebe/xeus' ]) {
+  const versions = await readdir(new URL('thebe/', output));
+  assert.equal(versions.length, 1);
+  assert.match(versions[0], /^[a-f0-9]{20}$/);
+  for (const path of ['index.js', 'thebe.css', 'comlink.worker.js', 'coincident.worker.js', 'xeus' ]) {
+    const asset = `thebe/${versions[0]}/${path}`;
     await access(new URL(asset, output));
   }
   const tree = pages.get('walkthrough');

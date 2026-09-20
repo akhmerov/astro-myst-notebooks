@@ -77,12 +77,12 @@ assert.equal(installed.scripts, undefined, 'archive must not run checkout-only b
 assert.equal(installed.devDependencies, undefined, 'archive must not require development dependencies');
 assert.ok(!Object.keys(installed.dependencies).some(name=>/^thebe|^@jupyter|^@lumino/.test(name)));
 const runtime = join(root, 'docs/dist/notebooks');
-const deployedFiles = await readdir(runtime);
+const deployedFiles = await readdir(runtime, { recursive: true });
 assert.ok(!deployedFiles.some(name => name.endsWith('.map')), 'debug source maps must not consume deployment space');
 let runtimeBytes = 0;
 for (const name of deployedFiles.filter(name => name.endsWith('.js'))) {
   runtimeBytes += (await stat(join(runtime, name))).size;
-  assert.doesNotMatch(await readFile(join(runtime, name), 'utf8'), /sourceMappingURL=/, 'deployed scripts must not reference omitted maps');
+  assert.equal(/(?:^|\n)\/\/[#@] sourceMappingURL=[^\n]+\s*$/.test(await readFile(join(runtime, name), 'utf8')), false, 'deployed scripts must not reference omitted maps');
 }
 assert.ok(runtimeBytes < 20_000_000, `Notebook JavaScript exceeds the 20 MB deployment budget: ${runtimeBytes} bytes`);
 await access(join(packageRoot, 'dist/notebooks/browser/client.js.map'));

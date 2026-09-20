@@ -1,6 +1,6 @@
 import type { BrowserOptions } from './types.js';
 let options: BrowserOptions;
-import { NotebookSession } from './runtime.js';
+import type { NotebookSession } from './runtime.js';
 import type { ThebeEventCb } from 'thebe-core';
 
 type State = 'idle' | 'loading' | 'ready' | 'running' | 'resetting' | 'error' | 'disposed';
@@ -164,9 +164,10 @@ class JupyterNotebook extends HTMLElement {
     }
   }
 
-  private async fail(error: unknown, session: NotebookSession) {
-    void session.dispose().catch(error => console.warn('Notebook cleanup failed', error));
+  private async fail(error: unknown, session?: NotebookSession) {
+    void session?.dispose().catch(error => console.warn('Notebook cleanup failed', error));
     if (this.session !== session || this.state === 'disposed') return;
+    this.operation++;
     this.restore();
     this.session = undefined;
     this.setState('error', error instanceof Error ? error.message : 'Python could not start. Please retry.');
@@ -174,6 +175,7 @@ class JupyterNotebook extends HTMLElement {
 
   private async activate(cell?: HTMLElement) {
     if (this.state !== 'idle' && this.state !== 'error') return;
+    const operation = ++this.operation;
     this.activationCell?.querySelector('.cell-interactivity-status')?.remove();
     this.activationCell = cell;
     this.setState('loading', 'Starting Python… The first download can take a minute.');
@@ -187,12 +189,17 @@ class JupyterNotebook extends HTMLElement {
       output.className = 'jupyter-live-output';
       cell.querySelector('.jupyter-output-area')!.append(output);
     }
-    const session = this.session = new NotebookSession(options);
+    let session: NotebookSession | undefined;
     try {
-      await this.startup(session.start(this, this.onStatus, () => {
-        if (this.session === session && this.state !== 'disposed') this.setState('loading', 'Preparing the Python environment…');
-      }, () => this.setState(this.state)));
-      if (this.session !== session) return;
+      await this.startup((async () => {
+        const { NotebookSession } = await import('./runtime.js');
+        if (this.operation !== operation || this.state === 'disposed') return;
+        session = this.session = new NotebookSession(options);
+        await session.start(this, this.onStatus, () => {
+          if (this.session === session && this.state !== 'disposed') this.setState('loading', 'Preparing the Python environment…');
+        }, () => this.setState(this.state));
+      })());
+      if (!session || this.session !== session) return;
       this.setState('ready', 'Python ready. Edit a cell or choose Run all.');
       cell?.querySelector<HTMLTextAreaElement>('.CodeMirror textarea')?.focus({ preventScroll: true });
     } catch (error) { await this.fail(error, session); }
