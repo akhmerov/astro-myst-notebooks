@@ -30,6 +30,9 @@ await writeFile(join(root, 'docs/src/content/docs/features.md'), [
   ':::{tab-item} Second', 'Packaged second tab.', ':::', '::::', '',
   '::::{grid} 1 2', ':::{card} Welcome', ':link: index.md',
   'Packaged card.', ':::', '::::', '',
+  '(packaged-equation)=', '```{math}',
+  String.raw`\mathcal{H}=\begin{pmatrix} H_0^{AA}&0\\0&H_0^{BB}\end{pmatrix}+\sum_{n\ge1}H_n^{\prime},\qquad U=\sum_{n=0}^{\infty}U_n`,
+  '```', '',
 ].join('\n'));
 await writeFile(join(root, 'docs/src/content/docs/notebook.ipynb'), JSON.stringify({
   nbformat: 4, nbformat_minor: 5,

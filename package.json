@@ -181,6 +181,7 @@
     "myst-roles",
     "myst-to-html",
     "myst-transforms",
-    "citation-js-utils"
+    "citation-js-utils",
+    "rehype-katex"
   ]
 }
