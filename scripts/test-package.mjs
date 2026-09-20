@@ -1,4 +1,4 @@
-import { access, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -76,6 +76,16 @@ for (const path of [...exportTargets(installed.exports), ...Object.values(instal
 assert.equal(installed.scripts, undefined, 'archive must not run checkout-only build hooks');
 assert.equal(installed.devDependencies, undefined, 'archive must not require development dependencies');
 assert.ok(!Object.keys(installed.dependencies).some(name=>/^thebe|^@jupyter|^@lumino/.test(name)));
+const runtime = join(root, 'docs/dist/notebooks');
+const deployedFiles = await readdir(runtime);
+assert.ok(!deployedFiles.some(name => name.endsWith('.map')), 'debug source maps must not consume deployment space');
+let runtimeBytes = 0;
+for (const name of deployedFiles.filter(name => name.endsWith('.js'))) {
+  runtimeBytes += (await stat(join(runtime, name))).size;
+  assert.doesNotMatch(await readFile(join(runtime, name), 'utf8'), /sourceMappingURL=/, 'deployed scripts must not reference omitted maps');
+}
+assert.ok(runtimeBytes < 20_000_000, `Notebook JavaScript exceeds the 20 MB deployment budget: ${runtimeBytes} bytes`);
+await access(join(packageRoot, 'dist/notebooks/browser/client.js.map'));
 const modules=JSON.parse(await readFile(join(root,'docs/package-lock.json'),'utf8')).packages;
 assert.ok(!Object.keys(modules).some(name=>/node_modules\/(thebe-lite|@jupyterlite\/pyodide-kernel)$/.test(name)));
 run('pixi',['run','-e','docs','--dry-run','docs-dev']);

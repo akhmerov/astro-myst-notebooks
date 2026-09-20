@@ -70,7 +70,7 @@ export default function notebooks(options: Options = {}): AstroIntegration {
         const prefix = sitePrefix(config);
         const runtimeBase = `${prefix}/notebooks`;
         const runtime = posix(fileURLToPath(new URL('./browser/', import.meta.url)));
-        const targets: CopyTarget[] = [{ src: `${runtime}*.{js,map}`, dest: 'notebooks', rename: { stripBase: true } }];
+        const targets: CopyTarget[] = [{ src: `${runtime}*.js`, dest: 'notebooks', rename: { stripBase: true } }];
         injectScript('page', `const runtimeBase = ${JSON.stringify(runtimeBase)}; import(/* @vite-ignore */ runtimeBase + '/client.js');`);
         if (interactive && (command === 'build' || command === 'dev')) {
           const settings = options.interactive || {};

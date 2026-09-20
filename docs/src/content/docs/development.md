@@ -156,10 +156,16 @@ DOCS_SITE=https://akhmerov.github.io DOCS_BASE=/astro-myst-notebooks pixi run np
 
 ## Dependency maintenance
 
-The release build bundles browser JavaScript and copies the supported classic
+The release build minifies browser JavaScript and copies the supported classic
 Xeus workers. Consumers serve these files unchanged; their Astro build does not
 compile Jupyter workers. Exact bundled package identities and license notices
 are included in `dist/notebooks/browser/`.
+
+JavaScript debug source maps remain in the package for debugging, but are not
+linked from the scripts or copied into generated sites. MyST source-selection
+metadata is separate and remains in every rendered page. The shared notebook
+JavaScript has a 20 MB deployment budget, checked when testing the archive.
+The consumer's Python environment and rendered outputs add to its total site size.
 
 The tested MyST dependency graph is bundled into the npm archive. This carries
 patched transitive versions and matching dependency declarations to consumers,

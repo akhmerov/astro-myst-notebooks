@@ -9,7 +9,8 @@ await mkdir(`${directory}/assets`, { recursive: true });
 const result = await build({
   entryPoints: ['src/notebooks/client.ts', 'src/notebooks/element.ts'], outdir: directory,
   bundle: true, splitting: true, format: 'esm', platform: 'browser', target: 'es2022',
-  loader: { '.svg': 'text' }, metafile: true, sourcemap: true,
+  // Keep debug maps in the package without linking or deploying them to every site.
+  loader: { '.svg': 'text' }, metafile: true, minify: true, sourcemap: 'external',
   plugins: [{ name: 'xeus-assets', setup(build) {
     build.onResolve({filter:/^@jupyterlite\/xeus$/}, () => ({path:resolve('src/notebooks/xeus-kernel.ts')}));
     build.onResolve({filter:/\?text$/}, args => ({path:require.resolve(args.path.replace('?text','.js'), {paths:[args.resolveDir]}),namespace:'raw-text'}));
