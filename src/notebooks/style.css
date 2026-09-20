@@ -138,13 +138,9 @@ jupyter-notebook { display: block; }
 }
 
 .jupyter-output {
-  margin-block: 0.8rem 1.6rem;
-  padding: 1rem 1.25rem;
-  border: 1px solid var(--sl-color-hairline-light);
-  border-left: 3px solid var(--sl-color-accent);
-  border-radius: 0 0.5rem 0.5rem 0;
+  margin-block: 0.8rem 1.2rem;
   overflow-x: auto;
-  font-size: 0.92rem;
+  font-size: inherit;
 }
 .jupyter-output pre { margin: 0; padding: 0; background: transparent; border: 0; }
 .jupyter-output img { display: block; margin: auto; max-width: 100%; height: auto; }
@@ -177,7 +173,6 @@ jupyter-notebook { display: block; }
 .jupyter-output.jupyter-inline img { display: inline-block; margin: 0; max-height: 1.6em; width: auto; vertical-align: middle; }
 .katex-display { overflow-x: auto; overflow-y: hidden; padding-block: 0.35rem; }
 
-@media (max-width: 50rem) { .jupyter-output { padding: 0.75rem; } }
 .jupyter-output table.dataframe { border: 0; border-collapse: collapse; }
 .jupyter-output table.dataframe :is(th, td) {
   border: 0;

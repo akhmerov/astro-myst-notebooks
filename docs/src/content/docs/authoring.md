@@ -62,7 +62,7 @@ The same options work with the Astro integration and the Starlight preset.
 
 `stdout` and `stderr` accept `show` or `remove`. They filter printed streams
 independently of rich results and exception tracebacks. Every field defaults
-to `show`.
+to `show`. Outputs appear without a surrounding frame.
 
 Page frontmatter overrides only the fields it specifies:
 

@@ -22,6 +22,11 @@ test('page and cell overrides survive activation, reruns, disclosures, and resta
   await expect(setup).toBeHidden();
   await first.locator('.jupyter-output-area > summary').click();
   await expect(first.locator('.jupyter-outputs')).toBeVisible();
+  const frame = await streams.locator('.jupyter-output').first().evaluate(element => {
+    const css = getComputedStyle(element);
+    return [css.borderTopWidth, css.borderLeftWidth, css.paddingTop, css.paddingLeft];
+  });
+  expect(frame).toEqual(['0px', '0px', '0px', '0px']);
 
   const controls = page.locator('[data-thebe-controls]');
   await controls.getByRole('button', { name: 'Enable interactivity', exact: true }).click();
