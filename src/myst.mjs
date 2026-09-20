@@ -1,5 +1,5 @@
 import { mystParse } from 'myst-parser';
-import { directives, roles } from './syntax.mjs';
+import { directives, roles, mdast } from './syntax.mjs';
 import { mystToHast } from 'myst-to-html';
 import { visit } from 'unist-util-visit';
 import { createRequire } from 'node:module';
@@ -12,7 +12,7 @@ export const remarkMyst = function (options = {}) {
   // MyST exports a unified v10 plugin; Astro uses unified v11's `parser` slot.
   // Parsing, including directive options and cell tags, stays in myst-parser.
   this.parser = (source, file) => {
-    const tree = mystParse(source, { vfile: file, roles, directives });
+    const tree = mystParse(source, { vfile: file, roles, directives, mdast });
     const errors = file.messages.filter(message => message.fatal === true);
     if (errors.length) file.fail(errors.map(message => message.reason).join('\n'));
     tree.data = { ...tree.data, source };
@@ -30,14 +30,17 @@ export const remarkMyst = function (options = {}) {
     if (tree.children[0]?.type === 'heading' && tree.children[0].depth === 1) tree.children.shift();
     visit(tree, 'admonition', node => {
       const classes = (node.class ?? '').split(/\s+/);
-      const kind = node.kind ?? classes.find(c => ['note', 'tip', 'hint', 'warning', 'important'].includes(c)) ?? 'note';
+      const styles = { note: 'note', tip: 'tip', hint: 'tip', important: 'tip',
+        warning: 'caution', caution: 'caution', attention: 'caution', danger: 'danger', error: 'danger' };
+      const kind = classes.find(c => Object.hasOwn(styles, c)) ?? node.kind ?? 'note';
       if (node.children[0]?.type !== 'admonitionTitle') node.children.unshift({
         type: 'admonitionTitle', children: [{ type: 'text', value: kind.charAt(0).toUpperCase() + kind.slice(1) }],
       });
       node.data = { hName: classes.includes('dropdown') ? 'details' : 'aside', hProperties: {
-        className: [...classes.filter(Boolean), 'starlight-aside', `starlight-aside--${kind === 'warning' ? 'caution' : 'note'}`],
+        className: [...new Set([...classes.filter(Boolean), 'admonition', ...(node.kind ? [node.kind] : []),
+          'starlight-aside', `starlight-aside--${styles[kind] ?? 'note'}`])],
       } };
-      node.children[0].data = { hName: classes.includes('dropdown') ? 'summary' : 'p', hProperties: { className: ['starlight-aside__title'] } };
+      node.children[0].data = { hName: classes.includes('dropdown') ? 'summary' : 'p', hProperties: { className: ['admonition-title', 'starlight-aside__title'] } };
     });
   };
 };
@@ -56,6 +59,10 @@ export const mystRehype = {
     allowDangerousHtml: true,
     handlers: {
       text: sourceText,
+      // The default MyST handlers emit `class`, which duplicates the HAST
+      // `className` supplied above; browsers then discard the themed classes.
+      admonition: (h, node) => h(node, 'aside', all(h, node)),
+      admonitionTitle: (h, node) => h(node, 'p', all(h, node)),
       tabSet: (h, node) => {
         const id = `tabs-${++tabSets}`;
         const items = node.children.filter(child => child.type === 'tabItem');

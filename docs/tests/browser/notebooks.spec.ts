@@ -1,6 +1,32 @@
 import { test, expect } from '@playwright/test';
 import type {} from '../../../dist/notebooks/source-selection.js';
 
+test('lists keep compact spacing and admonitions use themed, collapsible callouts', async ({ page }) => {
+  await page.goto('authoring/');
+  const compact = page.locator('.sl-markdown-content ul').filter({ hasText: 'Set up the environment.' });
+  const loose = page.locator('.sl-markdown-content ol').filter({ hasText: 'Set up the environment.' });
+  await expect(compact.locator(':scope > li > p')).toHaveCount(0);
+  await expect(loose.locator(':scope > li > p')).toHaveCount(3);
+  const gap = async (list: typeof compact) => list.evaluate(element => {
+    const items = element.querySelectorAll(':scope > li');
+    return items[1].getBoundingClientRect().top - items[0].getBoundingClientRect().bottom;
+  });
+  expect(await gap(compact)).toBeLessThanOrEqual(8);
+  expect(await gap(loose)).toBeGreaterThan(await gap(compact));
+  const dropdown = page.locator('details.project-note');
+  await expect(dropdown.locator('p')).toBeHidden();
+  await dropdown.locator('summary').click();
+  await expect(dropdown.locator('p')).toBeVisible();
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
+    const colors = await page.locator('.sl-markdown-content .starlight-aside').evaluateAll(elements =>
+      elements.map(element => getComputedStyle(element).backgroundColor));
+    expect(colors).toHaveLength(2);
+    expect(colors[0]).not.toBe(colors[1]);
+    expect(colors).not.toContain('rgba(0, 0, 0, 0)');
+  }
+});
+
 test('mounted files and directories are readable in browser Python and restored on restart', async ({ page }) => {
   await page.goto('browser/');
   const cell = page.locator('.jupyter-cell').first();

@@ -59,7 +59,10 @@ export async function executeDocument(items, options) {
 
 export async function executePage(cells, options) { return (await executeDocument(cells, options)).notebook; }
 
-export function remarkJupyter({ interactive = false, ...options } = {}) {
+export function remarkJupyter({ interactive = false, inputVisibility = 'visible', ...options } = {}) {
+  if (!['visible', 'collapsed', 'hidden'].includes(inputVisibility)) {
+    throw new Error('inputVisibility must be visible, collapsed, or hidden');
+  }
   return async (tree, file) => {
     const metadata = file.data.astro?.frontmatter ?? {};
     const execution = metadata.kernelspec && file.path ? { ...options, cwd: dirname(file.path) } : options;
@@ -117,6 +120,10 @@ export function remarkJupyter({ interactive = false, ...options } = {}) {
     for (let i = cells.length - 1; i >= 0; i--) {
       const { node, parent } = cells[i];
       const flags = new Set(parent.data?.tags ?? []);
+      if (!['show-input', 'hide-input', 'remove-input'].some(tag => flags.has(tag))) {
+        if (inputVisibility === 'collapsed') flags.add('hide-input');
+        if (inputVisibility === 'hidden') flags.add('remove-input');
+      }
       if (flags.has('remove-cell')) flags.add('hide-cell');
       if (flags.has('remove-output')) flags.add('hide-output');
       const replacement = [];

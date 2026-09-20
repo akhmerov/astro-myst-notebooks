@@ -11,6 +11,7 @@ export default defineConfig({
       title: 'Astro MyST Notebooks',
       components: { Banner: './src/components/AlphaBanner.astro' },
       plugins: [notebooks({
+        inputVisibility: 'visible',
         execution: { cwd: new URL('../', import.meta.url), timeout: 30 },
         interactive: { mounts: [
           { source: new URL('./data/measurements/', import.meta.url), target: '/data/measurements' },

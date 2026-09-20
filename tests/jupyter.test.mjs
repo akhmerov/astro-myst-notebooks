@@ -12,8 +12,8 @@ import { ansiToHast } from '../dist/ansi.mjs';
 
 const cwd = fileURLToPath(new URL('../', import.meta.url));
 
-async function render(source, frontmatter = {}) {
-  const processor = unified().use(remarkMyst).use(remarkJupyter, { cwd }).use(remarkRehype, mystRehype).use(rehypeKatex).use(rehypeJupyter);
+async function render(source, frontmatter = {}, options = {}) {
+  const processor = unified().use(remarkMyst).use(remarkJupyter, { cwd, ...options }).use(remarkRehype, mystRehype).use(rehypeKatex).use(rehypeJupyter);
   const file = { value: source, data: { astro: { frontmatter } } };
   return toHtml(await processor.run(processor.parse(source), file));
 }
@@ -105,6 +105,26 @@ test('plain pages do not execute; hidden cells still share state', async () => {
   assert.match(outputs, /<pre>kept-stdout/);
   assert.match(outputs, /kept-result/);
   assert.doesNotMatch(outputs, /dropped-stderr/);
+});
+
+test('site input visibility preserves execution, outputs, and explicit cell overrides', async () => {
+  const cell = tags => `\`\`\`{code-cell} python\n:tags: [${tags}]\n\nprint("visible-result")\n\`\`\``;
+  for (const inputVisibility of ['visible', 'collapsed', 'hidden']) {
+    const options = { inputVisibility };
+    const html = await render(cell(''), {}, options);
+    assert.match(html, /data-source="print/);
+    assert.match(html, /<pre>visible-result\n<\/pre>/);
+    assert.equal(html.includes('<details'), inputVisibility === 'collapsed');
+    assert.equal(html.includes('<code'), inputVisibility !== 'hidden');
+    const shown = await render(cell('show-input'), {}, options);
+    assert.match(shown, /<code/);
+    assert.doesNotMatch(shown, /<details/);
+    assert.match(await render(cell('hide-input'), {}, options), /<details/);
+    assert.doesNotMatch(await render(cell('remove-input'), {}, options), /<code/);
+    assert.match(await render(cell('hide-cell'), {}, options), / hidden/);
+    assert.match(await render('```python\nx = 1\n```', {}, options), /<code/);
+  }
+  await assert.rejects(render(cell(''), {}, { inputVisibility: 'typo' }), /inputVisibility/);
 });
 
 test('MIME priority, escaped text, math, image and interactive representations', async () => {

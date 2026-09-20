@@ -45,6 +45,20 @@ build. The default working directory is `execution.cwd`; a page with
 
 ### Hide setup or output
 
+Set `inputVisibility` in the `notebooks()` options in `astro.config.mjs` to
+choose a site-wide default for executable code inputs:
+
+```js
+notebooks({ inputVisibility: 'collapsed' })
+```
+
+`visible` (the default) shows the code, `collapsed` puts it in a **Show code**
+disclosure, and `hidden` omits the displayed input. Outputs and execution are
+unchanged. This works with both the Astro integration and the Starlight preset.
+Ordinary code fences remain visible.
+
+Explicit input tags override this default, so `show-input` keeps an individual
+cell visible even when the rest of the site's inputs are collapsed or hidden.
 Tags belong to the directive options:
 
 ````markdown
@@ -57,6 +71,7 @@ print("The code is collapsible; this output stays visible")
 
 | Tag | Static page behavior |
 | --- | --- |
+| `show-input` | Show the input regardless of the site default |
 | `hide-input` | Put the input in a “Show code” disclosure |
 | `remove-input` | Omit the displayed input |
 | `hide-output` or `remove-output` | Omit the output |
@@ -79,6 +94,82 @@ order. Activating interactive mode creates editors from authored source, so
 input visibility tags are presentation controls, not a way to conceal source.
 Set `thebe: false` in page frontmatter to retain build execution while disabling
 that page's interactive controls.
+
+## Admonitions and styling
+
+Use a named directive for a standard callout:
+
+````markdown
+:::{warning}
+Restart Python to clear variables from earlier runs.
+:::
+````
+
+:::{warning}
+Restart Python to clear variables from earlier runs.
+:::
+
+For a custom title, use `admonition`. The `class` option accepts a style name,
+`dropdown` to make the callout collapsible, and your own CSS classes:
+
+````markdown
+:::{admonition} Why restart?
+:class: dropdown tip project-note
+
+A fresh kernel starts without variables from earlier runs.
+:::
+````
+
+:::{admonition} Why restart?
+:class: dropdown tip project-note
+
+A fresh kernel starts without variables from earlier runs.
+:::
+
+The Starlight preset uses the theme's callout colors in light and dark mode:
+
+| MyST kind or style class | Starlight style |
+| --- | --- |
+| `note` or an unstyled `admonition` | `note` |
+| `tip`, `hint`, `important` | `tip` |
+| `warning`, `caution`, `attention` | `caution` |
+| `danger`, `error` | `danger` |
+
+A style class overrides the directive's kind. To customize one group of
+callouts, create `src/styles/custom.css` in your Astro site:
+
+```css
+.starlight-aside.project-note {
+  border-radius: 0.5rem;
+  --sl-color-asides-border: var(--sl-color-accent);
+}
+```
+
+Register it with `customCss: ['./src/styles/custom.css']` in the `starlight()`
+options. Scope overrides to your class to keep other callouts unchanged.
+With the plain Astro integration, supply your own callout CSS: the generated
+elements use `.starlight-aside`, `.starlight-aside--note` (or the style above),
+and `.starlight-aside__title`. Collapsible callouts use `details` and `summary`;
+other callouts use `aside` with a title paragraph.
+
+## List spacing
+
+Consecutive items form a compact list:
+
+- Set up the environment.
+- Build the site.
+- Inspect the output.
+
+Add blank lines between items when each item needs paragraph spacing:
+
+1. Set up the environment.
+
+2. Build the site.
+
+3. Inspect the output.
+
+Nested lists follow the same rule. Starlight supplies the spacing; no custom
+CSS is needed to make consecutive items compact.
 
 ## Inline expressions
 

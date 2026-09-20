@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mystParse } from 'myst-parser';
-import { directives, roles } from './syntax.mjs';
+import { directives, roles, mdast } from './syntax.mjs';
 import { VFile } from 'vfile';
 import { visit } from 'unist-util-visit';
 import {
@@ -22,7 +22,7 @@ function diagnostics(file) {
 
 export function parseDocument(source, path, root, fullSource = source, keepTitleNode = false) {
   const file = new VFile({ path, value: source });
-  const tree = mystParse(source, { vfile: file, roles, directives, extensions: { smartquotes: false } });
+  const tree = mystParse(source, { vfile: file, roles, directives, mdast, extensions: { smartquotes: false } });
   diagnostics(file);
   attachOrigins(tree, source, path, root, fullSource);
   const { frontmatter, identifiers } = getFrontmatter(file, tree, { keepTitleNode });

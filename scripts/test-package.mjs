@@ -48,9 +48,13 @@ export const onRequest = defineMiddleware((_context, next) => {
   return next();
 });
 `);
+const configPath = join(root, 'docs/astro.config.mjs');
+const config = await readFile(configPath, 'utf8');
+await writeFile(configPath, config.replace('notebooks({', "notebooks({ inputVisibility: 'collapsed',"));
 run('pixi',['run','-e','docs','docs']);
 const html=await readFile(join(root,'docs/dist/index.html'),'utf8');
 assert.match(html,/Hello from Jupyter/);
+assert.match(html, /<details class="jupyter-input">/);
 const features = await readFile(join(root, 'docs/dist/features/index.html'), 'utf8');
 assert.match(features, /role="tab"/);
 assert.match(features, /class="card/);
@@ -74,8 +78,12 @@ assert.ok(!Object.keys(modules).some(name=>/node_modules\/(thebe-lite|@jupyterli
 run('pixi',['run','-e','docs','--dry-run','docs-dev']);
 run('pixi',['run','-e','docs','--dry-run','docs-dev','51559']);
 // Rebuild under a prefix, exercising the same cached environment.
+await writeFile(configPath, config.replace('notebooks({', "notebooks({ inputVisibility: 'hidden',"));
 run('pixi',['run','-e','docs','npm','--prefix','docs','run','build','--','--base','/manual/']);
-assert.match(await readFile(join(root,'docs/dist/index.html'),'utf8'),/\/manual\/_astro\//);
+const prefixed = await readFile(join(root,'docs/dist/index.html'),'utf8');
+assert.match(prefixed,/\/manual\/_astro\//);
+assert.match(prefixed, /class="jupyter-static-input"><\/div>/);
+assert.doesNotMatch(prefixed, /class="jupyter-input"/);
 if (values.browser) {
   run(process.execPath, [fileURLToPath(new URL('./check-consumer-browser.mjs', import.meta.url)),
     join(root, 'docs'), process.env.DOCS_PORT ?? '51488', '/manual/']);
