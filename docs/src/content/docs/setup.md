@@ -22,11 +22,11 @@ You need:
 ## Create the site
 
 The package is not published on npm yet. Install the tested
-[GitHub preview](https://github.com/akhmerov/astro-myst-notebooks/releases/tag/v0.4.1)
+[GitHub preview](https://github.com/akhmerov/astro-myst-notebooks/releases/tag/v0.4.2)
 from your project's root. This public archive needs no GitHub sign-in:
 
 ```sh
-archive=https://github.com/akhmerov/astro-myst-notebooks/releases/download/v0.4.1/astro-myst-notebooks-0.4.1.tgz
+archive=https://github.com/akhmerov/astro-myst-notebooks/releases/download/v0.4.2/astro-myst-notebooks-0.4.2.tgz
 npm exec --yes --package="$archive" -- astro-myst-notebooks init --package "$archive"
 pixi run -e docs docs-dev
 ```
@@ -53,7 +53,7 @@ The initializer refuses to replace existing site files or Pixi tasks.
   [below](#include-python-api-documentation).
 - `--dir site` and `--pixi-environment site` choose the site directory and the
   Pixi environment name.
-- `--package /absolute/path/to/astro-myst-notebooks-0.4.1.tgz` installs an
+- `--package /absolute/path/to/astro-myst-notebooks-0.4.2.tgz` installs an
   archive you built yourself with `pixi run pack`; keep that file available for
   later installs.
 
