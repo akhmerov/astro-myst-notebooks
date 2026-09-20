@@ -158,6 +158,19 @@ jupyter-notebook { display: block; }
 .jupyter-input { border: 1px solid var(--sl-color-hairline-light); border-radius: 0.5rem; padding: 0.75rem 1rem; }
 .jupyter-input summary { cursor: pointer; color: var(--sl-color-accent-high); font-size: 0.875rem; }
 .jupyter-output table { width: 100%; font-variant-numeric: tabular-nums; }
+/* {eval} results stay inside the sentence rather than becoming an output block. */
+.jupyter-output.jupyter-inline {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+  font-size: inherit;
+  background: transparent;
+  color: inherit;
+}
+.jupyter-output.jupyter-inline img { display: inline-block; margin: 0; max-height: 1.6em; width: auto; vertical-align: middle; }
 .katex-display { overflow-x: auto; overflow-y: hidden; padding-block: 0.35rem; }
 
 @media (max-width: 50rem) { .jupyter-output { padding: 0.75rem; } }
