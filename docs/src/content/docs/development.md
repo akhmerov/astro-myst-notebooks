@@ -135,6 +135,25 @@ project's root (use an absolute archive path):
 npm exec --package=/path/to/astro-myst-notebooks-0.3.0.tgz -- astro-myst-notebooks init --package /path/to/astro-myst-notebooks-0.3.0.tgz
 ```
 
+## Publish the documentation
+
+The [public documentation](https://akhmerov.github.io/astro-myst-notebooks/)
+tracks `main` and displays an alpha notice on every page. It can describe changes
+newer than the most recent downloadable preview.
+
+The Deploy documentation workflow builds with the Pages origin and repository
+path, checks the output, and runs the browser notebook tests before deploying
+`docs/dist/`. GitHub Pages must use **GitHub Actions** as its publishing source.
+Pushes to `main` deploy automatically; the workflow can also be run manually.
+Pull requests do not deploy.
+
+To check the same deployment path locally:
+
+```sh
+DOCS_SITE=https://akhmerov.github.io DOCS_BASE=/astro-myst-notebooks pixi run docs-test
+DOCS_SITE=https://akhmerov.github.io DOCS_BASE=/astro-myst-notebooks pixi run npm run docs:test:browser
+```
+
 ## Dependency maintenance
 
 The release build bundles browser JavaScript and copies the supported classic

@@ -5,6 +5,9 @@ Python, and text source maps for Astro and Starlight. Extracted from Pymablock;
 this is an experimental package distributed as GitHub development previews.
 It is not published on npm.
 
+**Alpha:** APIs and behavior may change. Read the
+[documentation and interactive examples](https://akhmerov.github.io/astro-myst-notebooks/).
+
 [![Check and package](https://github.com/akhmerov/astro-myst-notebooks/actions/workflows/check.yml/badge.svg)](https://github.com/akhmerov/astro-myst-notebooks/actions/workflows/check.yml)
 
 ## Add documentation to a project

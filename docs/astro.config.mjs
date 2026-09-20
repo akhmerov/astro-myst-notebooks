@@ -3,11 +3,13 @@ import starlight from '@astrojs/starlight';
 import notebooks from 'astro-myst-notebooks/starlight';
 
 export default defineConfig({
+  site: process.env.DOCS_SITE,
   // Exercise deployment under a prefix as well as at the origin root.
   base: process.env.DOCS_BASE ?? '/',
   integrations: [
     starlight({
       title: 'Astro MyST Notebooks',
+      components: { Banner: './src/components/AlphaBanner.astro' },
       plugins: [notebooks({
         execution: { cwd: new URL('../', import.meta.url), timeout: 30 },
         interactive: { mounts: [

@@ -36,7 +36,8 @@ installed in Pixi is not automatically available to a reader's browser.
 
 ## Project status
 
-This is an experimental package extracted from Pymablock, distributed as GitHub
+This package is in **alpha**: APIs and behavior may change. It was extracted
+from Pymablock and is distributed as GitHub
 development previews. It is not published on npm. The npm archive is its
 distribution unit. It includes the Python
 adapter, environment contracts, CSS, and prepared browser modules, with no separate Python
