@@ -37,6 +37,7 @@ export function notebookToMyst(notebook) {
   const lines = yaml ? yaml.split('\n') : [];
   // Frontmatter mirrors Jupytext: the notebook's kernelspec and a title from the first heading.
   if (kernelspec && !lines.some(line => /^kernelspec:/.test(line))) lines.push(`kernelspec: ${JSON.stringify(kernelspec)}`);
+  if (notebook.metadata?.presentation && !lines.some(line => /^presentation:/.test(line))) lines.push(`presentation: ${JSON.stringify(notebook.metadata.presentation)}`);
   const heading = /^# (.+)$/m.exec(body);
   if (!lines.some(line => /^title:/.test(line)) && heading) lines.push(`title: ${JSON.stringify(heading[1].trim())}`);
   return `${lines.length ? `---\n${lines.join('\n')}\n---\n\n` : ''}${body}\n`;

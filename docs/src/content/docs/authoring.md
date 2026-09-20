@@ -43,57 +43,95 @@ order and share state only within that page. A cell error or timeout fails the
 build. The default working directory is `execution.cwd`; a page with
 `kernelspec` frontmatter instead executes from its source directory.
 
-### Hide setup or output
+### Notebook presentation
 
-Set `inputVisibility` in the `notebooks()` options in `astro.config.mjs` to
-choose a site-wide default for executable code inputs:
+Choose site defaults in the `notebooks()` options in `astro.config.mjs`:
 
 ```js
-notebooks({ inputVisibility: 'collapsed' })
+notebooks({
+  presentation: { input: 'hide', output: 'show', stderr: 'remove' },
+})
 ```
 
-`visible` (the default) shows the code, `collapsed` puts it in a **Show code**
-disclosure, and `hidden` omits the displayed input. Outputs and execution are
-unchanged. This works with both the Astro integration and the Starlight preset.
-Ordinary code fences remain visible.
+The same options work with the Astro integration and the Starlight preset.
+`input`, `output`, and `cell` accept `show`, `hide`, or `remove`:
 
-Explicit input tags override this default, so `show-input` keeps an individual
-cell visible even when the rest of the site's inputs are collapsed or hidden.
-Tags belong to the directive options:
+- `show` displays the content immediately.
+- `hide` puts it in a **Show code**, **Show output**, or **Show cell** disclosure.
+- `remove` omits its displayed content and provides no reveal control.
+
+`stdout` and `stderr` accept `show` or `remove`. They filter printed streams
+independently of rich results and exception tracebacks. Every field defaults
+to `show`.
+
+Page frontmatter overrides only the fields it specifies:
+
+```yaml
+---
+title: Results
+presentation:
+  input: remove
+  output: show
+  stdout: remove
+---
+```
+
+For `.ipynb` files, use `presentation` in notebook metadata or in the first
+Markdown cell's frontmatter; explicit frontmatter takes precedence.
+Cell tags then override the corresponding page or site field:
 
 ````markdown
 ```{code-cell} python
-:tags: [hide-input]
+:tags: [show-input, hide-output, show-stderr]
 
-print("The code is collapsible; this output stays visible")
+print("This input is visible; its output is collapsible")
 ```
 ````
 
-| Tag | Static page behavior |
+| Tags | Presentation |
 | --- | --- |
-| `show-input` | Show the input regardless of the site default |
-| `hide-input` | Put the input in a “Show code” disclosure |
-| `remove-input` | Omit the displayed input |
-| `hide-output` or `remove-output` | Omit the output |
-| `remove-stdout` or `remove-stderr` | Omit one stream while keeping other outputs |
-| `hide-cell` or `remove-cell` | Hide the entire cell |
-| `raises-exception` | Expect an error; publish the traceback instead of failing the build |
-| `skip-execution` | Publish the input without running it during the build |
+| `show-input`, `hide-input`, `remove-input` | Input visibility |
+| `show-output`, `hide-output`, `remove-output` | Output visibility |
+| `show-cell`, `hide-cell`, `remove-cell` | Whole-cell visibility |
+| `show-stdout`, `remove-stdout` | Printed stdout |
+| `show-stderr`, `remove-stderr` | Printed stderr |
 
-A cell that raises without `raises-exception` still fails the build, and a
-tagged cell that succeeds is published as is. Browser **Run all** continues
-past a tagged cell's error and stops at any other error.
+The precedence is site defaults, then page settings, then cell tags, separately
+for each field. Whole-cell visibility encloses input and output visibility:
+`show-input` cannot expose a cell whose `cell` setting is `remove`. Conflicting
+tags for the same field fail the build rather than silently choosing one.
 
-Set `execute: { skip: true }` in page frontmatter to publish every cell on the
-page without executing it. Skipped cells have no published output. They are
-still editable in the browser and run on request; **Run all** passes over them
-just as the build does.
+Browser activation, reruns, and kernel restarts preserve these settings and
+any disclosures the reader has opened. A removed input stays out of view;
+**Run all** still runs it. Stream filtering also applies to live outputs.
+Source remains in the page for execution, including removed cells, so these
+are presentation controls, not a way to conceal source. Ordinary code fences
+and inline `eval` results are unaffected.
 
-Hidden cells still execute during the build and remain in browser **Run all**
-order. Activating interactive mode creates editors from authored source, so
-input visibility tags are presentation controls, not a way to conceal source.
-Set `thebe: false` in page frontmatter to retain build execution while disabling
-that page's interactive controls.
+The [presentation example](presentation.md) demonstrates these controls with
+real native and browser execution.
+
+#### Execution is independent
+
+Hidden and removed cells still execute and share state. Use `skip-execution`
+to skip an individual cell during the build and browser **Run all**. Skipped
+cells have no build output but remain individually runnable in the browser.
+Set `execute: { skip: true }` in page frontmatter to skip the page's build
+execution. Set `thebe: false` to disable that page's browser controls while
+retaining build execution.
+
+Use `raises-exception` when a cell is expected to raise an error. Its traceback
+is rendered according to output visibility, and later cells continue. Hiding
+stderr does not hide exception tracebacks or turn unexpected errors into
+successful execution. An unexpected exception still fails the build and
+stops browser **Run all**.
+
+#### Migrating from 0.3
+
+The input-only `inputVisibility` option is replaced by `presentation.input`:
+`visible` becomes `show`, `collapsed` becomes `hide`, and `hidden` becomes
+`remove`. `hide-output` and `hide-cell` now provide disclosures; use
+`remove-output` and `remove-cell` to keep their previous non-revealable behavior.
 
 ## Admonitions and styling
 

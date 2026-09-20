@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { visit } from 'unist-util-visit';
+import { resolvePresentation, validatePresentation, publishOutput } from './presentation.js';
 
 // Astro can compile a page for both server and client. Reuse its execution
 // within this process; a new build process always starts with an empty cache.
@@ -59,10 +60,9 @@ export async function executeDocument(items, options) {
 
 export async function executePage(cells, options) { return (await executeDocument(cells, options)).notebook; }
 
-export function remarkJupyter({ interactive = false, inputVisibility = 'visible', ...options } = {}) {
-  if (!['visible', 'collapsed', 'hidden'].includes(inputVisibility)) {
-    throw new Error('inputVisibility must be visible, collapsed, or hidden');
-  }
+export function remarkJupyter({ interactive = false, presentation = {}, ...options } = {}) {
+  validatePresentation(presentation);
+  if ('inputVisibility' in options) throw new Error('Use presentation.input instead of inputVisibility');
   return async (tree, file) => {
     const metadata = file.data.astro?.frontmatter ?? {};
     const execution = metadata.kernelspec && file.path ? { ...options, cwd: dirname(file.path) } : options;
@@ -78,6 +78,8 @@ export function remarkJupyter({ interactive = false, inputVisibility = 'visible'
         order.push({ kind: 'cell', node, parent });
       }
     });
+    const pagePresentation = validatePresentation(metadata.presentation, 'page presentation');
+    const presentations = cells.map(({ parent }) => resolvePresentation(presentation, pagePresentation, parent.data?.tags));
     if (!cells.length && !expressions.length) return;
     // MyST frontmatter `execute.skip` (formerly `skip_execution`) publishes the
     // page's cells without running them; the skip-execution tag does so per cell.
@@ -119,50 +121,34 @@ export function remarkJupyter({ interactive = false, inputVisibility = 'visible'
     }
     for (let i = cells.length - 1; i >= 0; i--) {
       const { node, parent } = cells[i];
-      const flags = new Set(parent.data?.tags ?? []);
-      if (!['show-input', 'hide-input', 'remove-input'].some(tag => flags.has(tag))) {
-        if (inputVisibility === 'collapsed') flags.add('hide-input');
-        if (inputVisibility === 'hidden') flags.add('remove-input');
-      }
-      if (flags.has('remove-cell')) flags.add('hide-cell');
-      if (flags.has('remove-output')) flags.add('hide-output');
-      const replacement = [];
-      if (!flags.has('hide-cell')) {
-        if (!flags.has('hide-input') && !flags.has('remove-input')) replacement.push(node);
-        else if (!flags.has('remove-input')) replacement.push({
-          type: 'jupyterInput',
-          data: { hName: 'details', hProperties: { className: ['jupyter-input'] } },
-          children: [
-            { type: 'jupyterSummary', data: { hName: 'summary' }, children: [{ type: 'text', value: 'Show code' }] },
-            node,
-          ],
-        });
-        if (!flags.has('hide-output')) {
-          const published = (results.get(i) ?? []).filter(bundle => bundle.output_type !== 'stream' || !flags.has(`remove-${bundle.name}`));
-          for (const bundle of published) replacement.push({
-            type: 'jupyterOutput', data: { hName: 'jupyter-output', hProperties: { bundle } }, children: [],
-          });
-        }
-      }
-      // Retain every authored cell (including hidden setup) for Thebe. The
-      // browser consumes this source, never text scraped from highlighted HTML.
-      const input = replacement.filter(child => child.type !== 'jupyterOutput');
-      const outputs = replacement.filter(child => child.type === 'jupyterOutput');
-      parent.children.splice(parent.children.indexOf(node), 1, {
-        type: 'jupyterCell',
-        data: { hName: 'div', hProperties: {
-          className: ['jupyter-cell'], dataSource: node.value, dataCellId: sources[i].id,
-          dataTags: sources[i].tags.length ? sources[i].tags.join(' ') : undefined,
-          dataOrigin: node.data?.origin ? JSON.stringify(node.data.origin) : undefined,
-          hidden: flags.has('hide-cell'),
-          dataHideOutput: flags.has('hide-output') ? 'true' : 'false',
-        } },
-        children: [
-          { type: 'jupyterInputGroup', data: { hName: 'div', hProperties: { className: ['jupyter-static-input'] } }, children: input },
-          { type: 'jupyterOutputGroup', data: { hName: 'div', hProperties: { className: ['jupyter-outputs'] } }, children: outputs },
-        ],
-      });
+      const policy = presentations[i];
+      const element = (type, tag, properties, children) => ({ type, data: { hName: tag, hProperties: properties }, children });
+      const group = (part, label, children) => {
+        const visibility = policy[part];
+        return element('jupyterGroup', visibility === 'hide' ? 'details' : 'div', {
+          className: [`jupyter-${part}-area`, ...(visibility === 'hide' ? [`jupyter-${part}-disclosure`] : [])],
+          hidden: visibility === 'remove',
+        }, [
+          ...(visibility === 'hide' ? [element('jupyterSummary', 'summary', {}, [{ type: 'text', value: label }])] : []),
+          ...children,
+        ]);
+      };
+      const published = (results.get(i) ?? []).filter(bundle => publishOutput(bundle, policy));
+      const input = element('jupyterInputGroup', 'div', { className: ['jupyter-static-input'] },
+        policy.cell === 'remove' || policy.input === 'remove' ? [] : [node]);
+      const outputs = element('jupyterOutputGroup', 'div', { className: ['jupyter-outputs'] }, published.map(bundle =>
+        element('jupyterOutput', 'jupyter-output', { bundle }, [])));
+      // Source remains available for execution, even when its presentation is removed.
+      parent.children.splice(parent.children.indexOf(node), 1, element('jupyterCell', 'div', {
+        className: ['jupyter-cell'], dataSource: node.value, dataCellId: sources[i].id,
+        dataTags: sources[i].tags.length ? sources[i].tags.join(' ') : undefined,
+        dataOrigin: node.data?.origin ? JSON.stringify(node.data.origin) : undefined,
+        dataPresentation: JSON.stringify(policy), hidden: policy.cell === 'remove',
+      }, [group('cell', 'Show cell', [
+        group('input', 'Show code', [input]), group('output', 'Show output', [outputs]),
+      ])]));
     }
+
     if (interactive && metadata.thebe !== false) {
       const element = (type, tag, properties, children) => ({
         type, data: { hName: tag, hProperties: properties }, children,

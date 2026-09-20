@@ -40,6 +40,12 @@ class JupyterNotebook extends HTMLElement {
       if (button) void this.activate(button.closest<HTMLElement>('.jupyter-cell')!);
     }, { signal });
     this.mountCellActivation();
+    // Editors initialized inside a closed disclosure need their size refreshed on reveal.
+    this.addEventListener('toggle', event => {
+      if (!(event.target instanceof HTMLDetailsElement) || !event.target.open) return;
+      event.target.querySelectorAll<HTMLElement>('.CodeMirror').forEach(element =>
+        (element as HTMLElement & { CodeMirror: { refresh(): void } }).CodeMirror.refresh());
+    }, { signal, capture: true });
     this.resetButton.addEventListener('click', () => void this.reset(), { signal });
     // Thebe also binds keyboard execution; prevent it during setup/reset/run-all.
     this.addEventListener('keydown', event => {
@@ -176,11 +182,10 @@ class JupyterNotebook extends HTMLElement {
       source.dataset.executable = 'true';
       source.dataset.language = 'python';
       source.textContent = cell.dataset.source!;
-      cell.querySelector('.jupyter-static-input')!.replaceWith(source);
+      cell.querySelector('.jupyter-static-input')!.replaceChildren(source);
       const output = document.createElement('div');
       output.className = 'jupyter-live-output';
-      output.hidden = cell.dataset.hideOutput === 'true';
-      cell.append(output);
+      cell.querySelector('.jupyter-output-area')!.append(output);
     }
     const session = this.session = new NotebookSession(options);
     try {

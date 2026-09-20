@@ -13,11 +13,12 @@ import { rehypeJupyter } from '../mime.mjs';
 import { notebookPaths, sitePrefix } from '../paths.js';
 import { buildEnvironment } from './build-environment.js';
 import { notebookEntryType } from './entry-type.js';
-import type { BrowserOptions, ExecutionOptions, InteractiveOptions } from './types.js';
+import type { BrowserOptions, ExecutionOptions, InteractiveOptions, PresentationOptions } from './types.js';
+import { validatePresentation } from '../presentation.js';
 
 export interface Options {
-  /** Default executable-cell input presentation; explicit cell tags override it. */
-  inputVisibility?: 'visible' | 'collapsed' | 'hidden';
+  /** Notebook presentation defaults, overridden by page frontmatter and cell tags. */
+  presentation?: PresentationOptions;
   execution?: ExecutionOptions;
   interactive?: InteractiveOptions | false;
   references?: Record<string, { url?: string; file?: URL; base?: string; refresh?: boolean }>;
@@ -33,6 +34,8 @@ type CopyTarget = Parameters<typeof viteStaticCopy>[0]['targets'][number];
 
 /** MyST parsing, build execution, and optional Xeus notebooks as one Astro integration. */
 export default function notebooks(options: Options = {}): AstroIntegration {
+  if ('inputVisibility' in options) throw new Error('inputVisibility was removed in 0.4; use presentation.input: show, hide, or remove');
+  validatePresentation(options.presentation);
   let finalConfig: AstroConfig | undefined;
   return {
     name: 'astro-myst-notebooks',
@@ -58,7 +61,7 @@ export default function notebooks(options: Options = {}): AstroIntegration {
         updateConfig({ markdown: { processor: unified({
           remarkPlugins: [[remarkMyst, { root: options.execution?.cwd ?? config.root, documents: options.documents ?? paths.documents }],
             [remarkReferences, { references: options.references, localInventory: options.localInventory, cacheDir: options.referenceCache ?? paths.references }],
-            [remarkJupyter, { ...execution, interactive, inputVisibility: options.inputVisibility }]],
+            [remarkJupyter, { ...execution, interactive, presentation: options.presentation }]],
           remarkRehype: mystRehype,
           rehypePlugins: [rehypeJupyter, rehypeKatex, rehypeMathErrors, [rehypeDocumentBase, { base: config.base }]],
         }) } });

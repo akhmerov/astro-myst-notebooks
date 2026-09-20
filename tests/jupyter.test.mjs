@@ -58,7 +58,7 @@ test('skip-execution cells and execute.skip pages publish inputs without running
     '```{code-cell} python\n:tags: [skip-execution]\n\nraise RuntimeError("skipped-cell-must-not-run")\n```',
     '```{code-cell} python\nprint("ran-anyway")\n```',
   ].join('\n\n'));
-  assert.match(skipped, /data-tags="skip-execution"[^>]*><div class="jupyter-static-input">[\s\S]*?skipped-cell-must-not-run[\s\S]*?<div class="jupyter-outputs"><\/div>/);
+  assert.match(skipped, /data-tags="skip-execution"[^>]*>[\s\S]*?<div class="jupyter-static-input">[\s\S]*?skipped-cell-must-not-run[\s\S]*?<div class="jupyter-outputs"><\/div>/);
   assert.match(skipped, /<pre>ran-anyway/);
   for (const frontmatter of [{ execute: { skip: true } }, { skip_execution: true }]) {
     const page = await render('```{code-cell} python\nraise RuntimeError("page-must-not-run")\n```', frontmatter);
@@ -91,9 +91,9 @@ test('ANSI colours, bold, resets, 256-colour and truecolour codes become spans',
 test('plain pages do not execute; hidden cells still share state', async () => {
   assert.match(await render('```python\nraise RuntimeError("must not execute")\n```'), /must not execute/);
   const result = await render([
-    '```{code-cell} ipython3\n:tags: [hide-cell]\n\nx = 40\n```',
+    '```{code-cell} ipython3\n:tags: [remove-cell]\n\nx = 40\n```',
     '```{code-cell} ipython3\n:tags: [hide-input]\n\nx + 2\n```',
-    '```{code-cell} ipython3\n:tags: [hide-output]\n\nprint("suppressed-output")\n```',
+    '```{code-cell} ipython3\n:tags: [remove-output]\n\nprint("suppressed-output")\n```',
   ].join('\n\n'));
   assert.doesNotMatch(result, /<code[^>]*>x = 40/);
   assert.match(result, /data-source="x = 40"[^>]* hidden/);
@@ -107,24 +107,30 @@ test('plain pages do not execute; hidden cells still share state', async () => {
   assert.doesNotMatch(outputs, /dropped-stderr/);
 });
 
-test('site input visibility preserves execution, outputs, and explicit cell overrides', async () => {
+test('presentation preserves execution, outputs, and explicit cell overrides', async () => {
   const cell = tags => `\`\`\`{code-cell} python\n:tags: [${tags}]\n\nprint("visible-result")\n\`\`\``;
-  for (const inputVisibility of ['visible', 'collapsed', 'hidden']) {
-    const options = { inputVisibility };
+  for (const input of ['show', 'hide', 'remove']) {
+    const options = { presentation: { input } };
     const html = await render(cell(''), {}, options);
     assert.match(html, /data-source="print/);
     assert.match(html, /<pre>visible-result\n<\/pre>/);
-    assert.equal(html.includes('<details'), inputVisibility === 'collapsed');
-    assert.equal(html.includes('<code'), inputVisibility !== 'hidden');
+    assert.equal(html.includes('<details'), input === 'hide');
+    assert.equal(html.includes('<code'), input !== 'remove');
     const shown = await render(cell('show-input'), {}, options);
     assert.match(shown, /<code/);
     assert.doesNotMatch(shown, /<details/);
     assert.match(await render(cell('hide-input'), {}, options), /<details/);
     assert.doesNotMatch(await render(cell('remove-input'), {}, options), /<code/);
-    assert.match(await render(cell('hide-cell'), {}, options), / hidden/);
+    assert.match(await render(cell('hide-cell'), {}, options), /Show cell/);
+    assert.match(await render(cell('remove-cell'), {}, options), / hidden/);
     assert.match(await render('```python\nx = 1\n```', {}, options), /<code/);
   }
-  await assert.rejects(render(cell(''), {}, { inputVisibility: 'typo' }), /inputVisibility/);
+  await assert.rejects(render(cell(''), {}, { presentation: { input: 'typo' } }), /presentation.input/);
+  await assert.rejects(render(cell('show-output, remove-output')), /Conflicting presentation tags/);
+  const page = await render(cell(''), { presentation: { input: 'show', output: 'hide' } }, { presentation: { input: 'remove' } });
+  assert.match(page, /<code/);
+  assert.match(page, /Show output/);
+  assert.match(page, /<pre>visible-result/);
 });
 
 test('MIME priority, escaped text, math, image and interactive representations', async () => {

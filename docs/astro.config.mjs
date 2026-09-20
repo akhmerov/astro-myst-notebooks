@@ -11,7 +11,7 @@ export default defineConfig({
       title: 'Astro MyST Notebooks',
       components: { Banner: './src/components/AlphaBanner.astro' },
       plugins: [notebooks({
-        inputVisibility: 'visible',
+        presentation: { input: 'show', stderr: 'remove' },
         execution: { cwd: new URL('../', import.meta.url), timeout: 30 },
         interactive: { mounts: [
           { source: new URL('./data/measurements/', import.meta.url), target: '/data/measurements' },
@@ -24,6 +24,7 @@ export default defineConfig({
         { label: 'Set up a site', slug: 'setup' },
         { label: 'Executable walkthrough', slug: 'walkthrough' },
         { label: 'Author MyST', slug: 'authoring' },
+        { label: 'Notebook presentation', slug: 'presentation' },
         { label: 'Notebook source', slug: 'notebook' },
         { label: 'Browser execution', slug: 'browser' },
         { label: 'Configuration and API', slug: 'reference' },

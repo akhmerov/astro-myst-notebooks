@@ -24,7 +24,7 @@ with `new URL('./relative/path', import.meta.url)`.
 | `documents` | Advanced route-manifest override; defaults to the managed Astro cache |
 | `referenceCache` | Advanced inventory-cache override; managed by default |
 | `interactive` | Browser settings; `false` disables live execution site-wide |
-| `inputVisibility` | Executable-cell inputs: `visible` (default), `collapsed`, or `hidden`; explicit input tags override it |
+| `presentation` | Defaults for `input`, `output`, `cell` (`show`, `hide`, `remove`) and `stdout`, `stderr` (`show`, `remove`); all default to `show`. Page frontmatter and cell tags override individual fields. See [notebook presentation](authoring.md#notebook-presentation). |
 | `references` | Map of project keys to Sphinx v2 inventories |
 | `localInventory` | Optional local API inventory, usually written by `pydocsInventory` |
 

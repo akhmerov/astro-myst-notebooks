@@ -6,7 +6,7 @@ import { visit } from 'unist-util-visit';
 
 const output = new URL('../dist/', import.meta.url);
 const base = (process.env.DOCS_BASE ?? '/').replace(/\/$/, '');
-const names = ['', 'setup', 'walkthrough', 'authoring', 'notebook', 'browser', 'reference', 'development'];
+const names = ['', 'setup', 'walkthrough', 'authoring', 'notebook', 'presentation', 'browser', 'reference', 'development'];
 const pages = new Map(await Promise.all(names.map(async name => {
   const html = await readFile(new URL(`${name ? name + '/' : ''}index.html`, output), 'utf8');
   return [name, fromHtml(html)];
@@ -84,7 +84,7 @@ test('a Jupyter notebook renders and executes like a MyST page', async () => {
   assert.ok(nodes.some(node => node.tagName === 'h1' && text(node) === 'Notebook source'));
   const cells = nodes.filter(node => node.properties.className?.includes('jupyter-cell'));
   assert.equal(cells.length, 2);
-  assert.equal(cells[0].properties.dataTags, 'hide-output');
+  assert.equal(cells[0].properties.dataTags, 'remove-output');
   const outputs = nodes.filter(node => node.properties.className?.includes('jupyter-output'));
   assert.deepEqual(outputs.map(text), ['5', '55']);
   assert.doesNotMatch(text(pages.get('notebook')), /Raw cells are not published/);

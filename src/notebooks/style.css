@@ -155,8 +155,12 @@ jupyter-notebook { display: block; }
 .jupyter-output svg { max-width: 100%; height: auto; }
 .jupyter-output .js-plotly-plot svg { max-width: none; height: 100%; }
 .jupyter-plotly { min-height: 420px; width: 100%; }
-.jupyter-input { border: 1px solid var(--sl-color-hairline-light); border-radius: 0.5rem; padding: 0.75rem 1rem; }
-.jupyter-input summary { cursor: pointer; color: var(--sl-color-accent-high); font-size: 0.875rem; }
+.jupyter-cell :is(.jupyter-input-disclosure, .jupyter-output-disclosure, .jupyter-cell-disclosure) {
+  border: 1px solid var(--sl-color-hairline-light); border-radius: 0.5rem; padding: 0.75rem 1rem;
+}
+.jupyter-cell details > summary { cursor: pointer; color: var(--sl-color-accent-high); font-size: 0.875rem; }
+/* Filtered live streams leave an empty output widget, without an empty row. */
+.jupyter-live-output .jp-OutputArea-child:has(.jupyter-output-suppressed) { display: none; }
 .jupyter-output table { width: 100%; font-variant-numeric: tabular-nums; }
 /* {eval} results stay inside the sentence rather than becoming an output block. */
 .jupyter-output.jupyter-inline {
