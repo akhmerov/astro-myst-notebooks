@@ -23,6 +23,7 @@ export default defineConfig({
         { label: 'Overview', slug: '' },
         { label: 'Set up a site', slug: 'setup' },
         { label: 'Executable walkthrough', slug: 'walkthrough' },
+        { label: 'Plotly figures', slug: 'plots' },
         { label: 'Author MyST', slug: 'authoring' },
         { label: 'Notebook presentation', slug: 'presentation' },
         { label: 'Notebook source', slug: 'notebook' },

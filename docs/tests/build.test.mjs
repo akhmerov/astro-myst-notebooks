@@ -6,7 +6,7 @@ import { visit } from 'unist-util-visit';
 
 const output = new URL('../dist/', import.meta.url);
 const base = (process.env.DOCS_BASE ?? '/').replace(/\/$/, '');
-const names = ['', 'setup', 'walkthrough', 'authoring', 'notebook', 'presentation', 'browser', 'reference', 'development'];
+const names = ['', 'setup', 'walkthrough', 'plots', 'authoring', 'notebook', 'presentation', 'browser', 'reference', 'development'];
 const pages = new Map(await Promise.all(names.map(async name => {
   const html = await readFile(new URL(`${name ? name + '/' : ''}index.html`, output), 'utf8');
   return [name, fromHtml(html)];

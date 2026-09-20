@@ -43,6 +43,11 @@ try {
   assert.equal(equation.position, 'absolute', 'equation numbering must use the installed KaTeX stylesheet');
   assert.ok(Number.isFinite(equation.formulaRight), 'equation formula must have measurable bounds');
   assert.ok(equation.tagLeft > equation.formulaRight + 8, 'equation number must be separate from the formula');
+  const plot = page.locator('[data-plotly][data-rendered="true"]');
+  await plot.waitFor();
+  assert.equal((await plot.locator('.main-svg').first().boundingBox()).height, 280);
+  assert.ok((await plot.locator('svg.ytitle-math').boundingBox()).height > 10);
+  assert.ok(await plot.locator('svg.ytitle-math path').count() > 0, 'packaged Plotly must typeset math locally');
   assert.deepEqual(errors,[]);
   console.log(`Packed consumer browser execution and infinite-loop reset passed at ${base}`);
 } finally {await browser?.close();await server.stop();}

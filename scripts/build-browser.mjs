@@ -35,6 +35,7 @@ for (const [name, subdir, pattern] of [
     else await copyFile(source, target);
   }
 }
+await copyFile(require.resolve('mathjax/es5/tex-svg-full.js'), `${directory}/mathjax-tex-svg.js`);
 const runtimeHash = createHash('sha256');
 for (const folder of ['', 'assets/']) {
   for (const name of (await readdir(directory + '/' + folder)).sort()) {
@@ -50,7 +51,7 @@ const roots = new Set(Object.keys(result.metafile.inputs).filter(p=>p.includes('
   const count = tail[0].startsWith('@') ? 2 : 1;
   return pieces.join('node_modules/') + 'node_modules/' + tail.slice(0,count).join('/');
 }));
-for (const name of ['thebe','@jupyterlite/xeus','@emscripten-forge/mambajs-core']) roots.add(dirname(require.resolve(`${name}/package.json`)));
+for (const name of ['thebe','@jupyterlite/xeus','@emscripten-forge/mambajs-core','mathjax']) roots.add(dirname(require.resolve(`${name}/package.json`)));
 const packages=[];
 let notices='Browser dependencies\n====================\n';
 for (const root of [...roots].sort()) {

@@ -12,6 +12,14 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   timeout: 180000,
+  projects: [
+    { name: 'chromium' },
+    { name: 'firefox', testMatch: /plotly\.spec\.ts/, use: {
+      browserName: 'firefox',
+      launchOptions: { executablePath: process.env.PLAYWRIGHT_FIREFOX_EXECUTABLE,
+        firefoxUserPrefs: { 'webgl.force-enabled': true, 'webgl.disabled': false } },
+    } },
+  ],
   use: {
     baseURL: `${origin}${base}/`,
     headless: true,

@@ -60,12 +60,14 @@ DOCS_BASE=/manual/ pixi run docs-test
 Browser checks use Playwright against the built site:
 
 ```sh
-pixi run npx playwright install chromium
+pixi run npx playwright install chromium firefox
 pixi run docs-browser
 ```
 
-Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to use an existing Chromium binary, or
-`DOCS_PORT` to choose the local test server port. The browser suite checks the
+Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` or `PLAYWRIGHT_FIREFOX_EXECUTABLE` to use
+existing browser binaries, or `DOCS_PORT` to choose the local test server port.
+The npm browser-test setup installs Firefox and its system dependencies in CI.
+The browser suite checks the
 rendered page, source selections, and real Python activation, execution, and
 reset. Initial browser-runtime downloads require network access.
 
