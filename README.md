@@ -2,28 +2,19 @@
 
 MyST documents, native Jupyter execution, rich MIME outputs, browser-local
 Python, and text source maps for Astro and Starlight. Extracted from Pymablock;
-this is an experimental package, not a published release.
+this is an experimental package distributed as GitHub development previews.
+It is not published on npm.
 
 [![Check and package](https://github.com/akhmerov/astro-myst-notebooks/actions/workflows/check.yml/badge.svg)](https://github.com/akhmerov/astro-myst-notebooks/actions/workflows/check.yml)
 
 ## Add documentation to a project
 
-The package is not published on npm yet. Download the package artifact from a
-successful [Check and package run](https://github.com/akhmerov/astro-myst-notebooks/actions/workflows/check.yml)
-(GitHub sign-in required), then extract the artifact ZIP to obtain the `.tgz`
-and `SHA256SUMS`. Alternatively, build it from source:
-
-```sh
-git clone https://github.com/akhmerov/astro-myst-notebooks.git
-cd astro-myst-notebooks
-pixi run pack
-```
-
 With Node and Pixi available, run the initializer from the project you want to
-document. Use the absolute path to the downloaded or locally built archive:
+document. This installs a tested [GitHub preview](https://github.com/akhmerov/astro-myst-notebooks/releases/tag/preview-2026-09-20)
+directly from its archive; no GitHub sign-in or local package build is needed:
 
 ```sh
-archive=/absolute/path/to/astro-myst-notebooks-0.3.0.tgz
+archive=https://github.com/akhmerov/astro-myst-notebooks/releases/download/preview-2026-09-20/astro-myst-notebooks-0.3.0.tgz
 npm exec --yes --package="$archive" -- astro-myst-notebooks init --package "$archive"
 pixi run -e docs docs-dev
 ```
@@ -32,7 +23,21 @@ The Starlight preset manages MyST rendering, Jupyter execution, references, and
 the prepared Xeus browser environment. The initializer creates a working site
 and Pixi tasks. Add `--api mypackage` to include Python API documentation, or
 `--dir docs --pixi-environment docs` to select the site directory and environment.
-Keep the archive at a stable path: the generated npm lockfile refers to it.
+The generated npm lockfile records the archive URL and integrity. Existing
+consumers can run `npm install "$archive"` in their documentation site's npm
+directory to install the same package. Use the attached `.tgz` asset, not
+GitHub's automatically generated source archives or a Git dependency.
+
+To build the current source yourself:
+
+```sh
+git clone https://github.com/akhmerov/astro-myst-notebooks.git
+cd astro-myst-notebooks
+pixi run pack
+```
+
+Then use the absolute path to that `.tgz` in place of the URL above. Keep local
+archives at a stable path for subsequent `npm ci` runs.
 
 ## Read and run the documentation
 

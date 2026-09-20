@@ -9,6 +9,7 @@ test('mounted files and directories are readable in browser Python and restored 
   const controls = page.locator('[data-notebook-toolbar] [data-thebe-controls]');
   await expect(controls).toHaveAttribute('data-state', 'ready', { timeout: 150000 });
   await controls.getByRole('button', { name: 'Run all', exact: true }).click();
+  await expect(controls.getByRole('status')).toHaveText('All cells completed.', { timeout: 60000 });
   await expect(cell.locator('.jupyter-live-output')).toContainText('Measurements bundled with the documentation.');
   await expect(cell.locator('.jupyter-live-output')).toContainText('Measured total: 42');
   const source = await cell.getAttribute('data-source');
@@ -23,6 +24,7 @@ test('mounted files and directories are readable in browser Python and restored 
     (element as HTMLElement & { CodeMirror: { setValue(value: string): void } }).CodeMirror.setValue(code!);
   }, source);
   await controls.getByRole('button', { name: 'Run all', exact: true }).click();
+  await expect(controls.getByRole('status')).toHaveText('All cells completed.', { timeout: 60000 });
   await expect(cell.locator('.jupyter-live-output')).toContainText('Measurements bundled with the documentation.');
   await expect(cell.locator('.jupyter-live-output')).toContainText('Measured total: 42');
 });

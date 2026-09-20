@@ -9,19 +9,20 @@ integration owns rendering, routes, caches, and browser assets.
 
 ## Create the site
 
-The package is not published on npm yet. Download and extract the package
-artifact from a successful [GitHub Actions run](https://github.com/akhmerov/astro-myst-notebooks/actions/workflows/check.yml)
-(requires GitHub sign-in), or build it with `pixi run pack` in a checkout of
-this repository. With Node and Pixi available, run from your project's root:
+The package is not published on npm yet. With Node and Pixi available, install
+the tested [GitHub preview](https://github.com/akhmerov/astro-myst-notebooks/releases/tag/preview-2026-09-20)
+from your project's root. This public archive needs no GitHub sign-in:
 
 ```sh
-archive=/absolute/path/to/astro-myst-notebooks-0.3.0.tgz
+archive=https://github.com/akhmerov/astro-myst-notebooks/releases/download/preview-2026-09-20/astro-myst-notebooks-0.3.0.tgz
 npm exec --yes --package="$archive" -- astro-myst-notebooks init --package "$archive"
 pixi run -e docs docs-dev
 ```
 
-Keep the archive at a stable path for later `npm ci` runs. Add `--api mypackage`
-to include Python API documentation. See the
+The generated npm lockfile records the URL and integrity for later `npm ci`
+runs. Add `--api mypackage` to include Python API documentation. You can also
+build an archive with `pixi run pack` in a source checkout and supply its absolute
+path instead; keep that local file available. See the
 [packed-release workflow](development.md#test-an-unpublished-release) for checks
 you can run before adopting an archive.
 

@@ -3,10 +3,14 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
 import assert from 'node:assert/strict';
+const { values } = parseArgs({ options: {
+  api: { type: 'boolean' }, browser: { type: 'boolean' }, archive: { type: 'string' },
+} });
 const pkg = JSON.parse(await readFile('package.json','utf8'));
-const archive = resolve(`astro-myst-notebooks-${pkg.version}.tgz`);
-const api = process.argv.includes('--api');
+const archive = values.archive ?? resolve(`astro-myst-notebooks-${pkg.version}.tgz`);
+const api = values.api;
 const root = await mkdtemp(join(tmpdir(),'notebooks-release-'));
 function run(command,args,cwd=root) {
   const commandArgs = command === 'pixi' ? [args[0], '--manifest-path', join(root, 'pixi.toml'), ...args.slice(1)] : args;
@@ -72,7 +76,7 @@ run('pixi',['run','-e','docs','--dry-run','docs-dev','51559']);
 // Rebuild under a prefix, exercising the same cached environment.
 run('pixi',['run','-e','docs','npm','--prefix','docs','run','build','--','--base','/manual/']);
 assert.match(await readFile(join(root,'docs/dist/index.html'),'utf8'),/\/manual\/_astro\//);
-if (process.argv.includes('--browser')) {
+if (values.browser) {
   run(process.execPath, [fileURLToPath(new URL('./check-consumer-browser.mjs', import.meta.url)),
     join(root, 'docs'), process.env.DOCS_PORT ?? '51488', '/manual/']);
 }

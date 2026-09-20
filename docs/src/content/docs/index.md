@@ -36,8 +36,9 @@ installed in Pixi is not automatically available to a reader's browser.
 
 ## Project status
 
-This is an experimental package extracted from Pymablock; it is not a published
-release. The npm archive is its distribution unit. It includes the Python
+This is an experimental package extracted from Pymablock, distributed as GitHub
+development previews. It is not published on npm. The npm archive is its
+distribution unit. It includes the Python
 adapter, environment contracts, CSS, and prepared browser modules, with no separate Python
 distribution. Pymablock remains the downstream integration consumer.
 

@@ -118,6 +118,16 @@ available for 30 days; keep a local copy for consumers that depend on one.
 To verify a downloaded archive, run `sha256sum -c SHA256SUMS` in the extracted
 artifact directory. The workflow has no npm publication step.
 
+GitHub prereleases retain a tested CI archive and its checksum at a fixed,
+public download URL. A preview tag identifies the source commit; its assets
+must not be replaced with a different build. These attachments are distinct
+from GitHub's automatically generated source archives, which lack the compiled
+package assets. To check a published attachment through the same consumer flow:
+
+```sh
+pixi run npm run release:check -- --archive https://github.com/akhmerov/astro-myst-notebooks/releases/download/preview-2026-09-20/astro-myst-notebooks-0.3.0.tgz --api --browser
+```
+
 To initialize another project from an unpublished archive, run from that
 project's root (use an absolute archive path):
 
