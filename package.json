@@ -1,6 +1,6 @@
 {
   "name": "astro-myst-notebooks",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "description": "MyST documents, Jupyter execution, source maps, and browser notebooks for Astro and Starlight",
   "license": "BSD-2-Clause",

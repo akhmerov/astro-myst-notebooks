@@ -26,13 +26,13 @@ following in the root of the project you want to document. An empty directory
 works too.
 
 ```sh
-archive=https://github.com/akhmerov/astro-myst-notebooks/releases/download/preview-2026-09-20/astro-myst-notebooks-0.3.0.tgz
+archive=https://github.com/akhmerov/astro-myst-notebooks/releases/download/v0.4.0/astro-myst-notebooks-0.4.0.tgz
 npm exec --yes --package="$archive" -- astro-myst-notebooks init --package "$archive"
 pixi run -e docs docs-dev
 ```
 
 The first command downloads the tested
-[GitHub preview](https://github.com/akhmerov/astro-myst-notebooks/releases/tag/preview-2026-09-20)
+[GitHub preview](https://github.com/akhmerov/astro-myst-notebooks/releases/tag/v0.4.0)
 and creates a `docs/` directory with a working Starlight site, a welcome page
 containing one Python cell, and a browser environment declaration. It also
 adds a Pixi environment named `docs` with the Jupyter tools and the tasks

@@ -125,14 +125,14 @@ from GitHub's automatically generated source archives, which lack the compiled
 package assets. To check a published attachment through the same consumer flow:
 
 ```sh
-pixi run npm run release:check -- --archive https://github.com/akhmerov/astro-myst-notebooks/releases/download/preview-2026-09-20/astro-myst-notebooks-0.3.0.tgz --api --browser
+pixi run npm run release:check -- --archive https://github.com/akhmerov/astro-myst-notebooks/releases/download/v0.4.0/astro-myst-notebooks-0.4.0.tgz --api --browser
 ```
 
 To initialize another project from an unpublished archive, run from that
 project's root (use an absolute archive path):
 
 ```sh
-npm exec --package=/path/to/astro-myst-notebooks-0.3.0.tgz -- astro-myst-notebooks init --package /path/to/astro-myst-notebooks-0.3.0.tgz
+npm exec --package=/path/to/astro-myst-notebooks-0.4.0.tgz -- astro-myst-notebooks init --package /path/to/astro-myst-notebooks-0.4.0.tgz
 ```
 
 ## Publish the documentation
