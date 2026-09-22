@@ -1,0 +1,11 @@
+version: 1
+project:
+  title: MyST with Astro
+  plugins:
+    - ../provenance.mjs
+  toc:
+    - file: index.md
+    - file: second.md
+    - file: notebook.ipynb
+site:
+  template: ../theme

@@ -129,4 +129,8 @@ Pixi environment. Pymablock remains the downstream integration consumer: before
 changing browser or Astro integration boundaries, pack this repository, install
 the archive in Pymablock, and run its build-contract and browser checks.
 
+The [experimental MyST static theme](experiments/myst-theme/README.md) tests
+using MyST's document engine to build a Starlight site with this package's
+notebook runtime. It includes runnable examples, checks, and migration limits.
+
 Distributed under the BSD-2-Clause license; see [LICENSE](LICENSE).

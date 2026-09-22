@@ -1,0 +1,12 @@
+myst: v1
+kind: site
+title: Astro MyST Notebooks (experimental)
+description: Render MyST content with Astro, Starlight, and browser notebooks.
+version: 0.0.1
+license: BSD-2-Clause
+authors:
+  - name: Astro MyST Notebooks contributors
+build:
+  render: node render.mjs
+files:
+  - render.mjs
