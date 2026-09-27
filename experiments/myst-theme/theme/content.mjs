@@ -47,6 +47,9 @@ export async function renderPage(page, { root, base = '/', interactive = true } 
       node.url = `${node.url ?? ''}#${node.html_id ?? node.identifier}`;
     }
     if (node.type === 'include') node.type = 'block';
+    // The HTML adapter uses identifier for some targets (notably headings).
+    // MyST has already resolved the actual HTML anchor, which may differ.
+    if (node.html_id && node.type !== 'link') node.identifier = node.html_id;
     if (node.type === 'block' && node.kind === 'notebook-code') {
       const code = node.children.find(child => child.type === 'code');
       const outputs = node.children.find(child => child.type === 'outputs');

@@ -1,0 +1,13 @@
+{
+  "name": "@astro-myst-notebooks/autodoc",
+  "version": "0.1.0",
+  "description": "Python API documentation and Sphinx inventories for MyST",
+  "type": "module",
+  "license": "BSD-2-Clause",
+  "engines": { "node": ">=22.12.0" },
+  "exports": { ".": "./index.mjs", "./inventory": "./inventory.mjs" },
+  "bin": { "myst-autodoc": "./cli.mjs" },
+  "files": ["*.mjs", "extract.py", "README.md", "LICENSE"],
+  "dependencies": { "intersphinx": "^1.1.0" },
+  "peerDependencies": { "mystmd": "^1.11.0" }
+}

@@ -9,3 +9,5 @@ playwright-report/
 .notebooks-pack-*/
 .jupyterlite.doit.db*
 SHA256SUMS
+.autodoc-test/
+.autodoc-check-*/

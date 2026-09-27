@@ -29,6 +29,10 @@ jobs:
         run: pixi run test
       - name: Check types
         run: pixi run check
+      - name: Install isolated Sphinx consumer
+        run: pixi install --locked -e interop
+      - name: Test standalone MyST autodoc interoperability
+        run: pixi run npm run autodoc:test
       - name: Build and check documentation
         run: pixi run docs-test
       - name: Install Chromium

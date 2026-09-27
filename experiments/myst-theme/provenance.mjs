@@ -14,8 +14,12 @@ async function annotate(tree, path, root) {
     throw new Error('Experimental provenance does not support filtered includes');
   }
   const includes = [];
+  const generated = [];
   function detach(node) {
-    if (node.type === 'include') {
+    if (node.data?.autodocGenerated) {
+      generated.push({ node, children: node.children });
+      node.children = [];
+    } else if (node.type === 'include') {
       includes.push({ node, children: node.children });
       node.children = [];
     } else for (const child of node.children ?? []) detach(child);
@@ -43,6 +47,10 @@ async function annotate(tree, path, root) {
     });
     node.data.origin = { ...range(start, start + node.value.length), lines };
   });
+  for (const { node, children } of generated) {
+    delete node.data.origin;
+    node.children = children;
+  }
   for (const { node, children } of includes) {
     node.children = children;
     await annotate({ type: 'root', children }, resolve(dirname(path), node.file), root);

@@ -72,7 +72,8 @@
     "release:check": "node scripts/test-package.mjs",
     "myst:build": "npm run build && node experiments/myst-theme/build.mjs",
     "myst:test": "npm run myst:build && node --test experiments/myst-theme/tests/*.test.mjs",
-    "myst:browser": "playwright test --config experiments/myst-theme/playwright.config.ts"
+    "myst:browser": "playwright test --config experiments/myst-theme/playwright.config.ts",
+    "autodoc:test": "node --test packages/myst-autodoc/tests/*.test.mjs"
   },
   "dependencies": {
     "@astrojs/markdown-remark": "^7.3.1",

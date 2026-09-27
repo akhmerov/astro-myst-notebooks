@@ -133,4 +133,7 @@ The [experimental MyST static theme](experiments/myst-theme/README.md) tests
 using MyST's document engine to build a Starlight site with this package's
 notebook runtime. It includes runnable examples, checks, and migration limits.
 
+The separate [MyST autodoc plugin](packages/myst-autodoc/README.md) generates
+Python API documentation and typed Sphinx inventories without an Astro dependency.
+
 Distributed under the BSD-2-Clause license; see [LICENSE](LICENSE).

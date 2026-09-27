@@ -31,3 +31,12 @@ docs-browser = { cmd = "npm run docs:test:browser", depends-on = ["docs"] }
 [pypi-dependencies]
 rst-to-myst = ">=0.4, <0.5"
 jupyterlite-xeus = ">=5.1, <6"
+
+[feature.interop.dependencies]
+python = ">=3.11,<3.14"
+
+[feature.interop.pypi-dependencies]
+sphinx = ">=9,<10"
+
+[environments]
+interop = { features = ["interop"], no-default-feature = true }

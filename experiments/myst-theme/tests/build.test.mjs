@@ -9,6 +9,7 @@ import { createHash } from 'node:crypto';
 import { fromHtml } from 'hast-util-from-html';
 import { visit } from 'unist-util-visit';
 import { renderPage } from '../theme/content.mjs';
+import { Inventory } from 'intersphinx';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const project = new URL('../project/', import.meta.url);
@@ -50,6 +51,24 @@ test('published exact selections and code lines match original files and digests
     assert.equal(origin.digest, createHash('sha256').update(source).digest('hex'));
     if (origin.kind === 'exact') assert.equal(source.slice(origin.start, origin.end), value);
   }
+});
+
+test('autodoc HTML and typed inventory agree without invented Markdown origins', async () => {
+  const html = await read('_build/html/api/index.html');
+  const inventory = new Inventory({ path: fileURLToPath(new URL('_build/html/objects.inv', project)) });
+  await inventory.load();
+  const destination = inventory.data['py:function']['theme_api.triangular'].location;
+  assert.match(destination, /^api#py-/);
+  assert.ok(html.includes(`id="${destination.split('#')[1]}"`));
+  assert.match(html, /The last integer to include/);
+  const page = JSON.parse(await read('_build/site/content/api.json'));
+  let generated = 0;
+  visit(page.mdast, node => {
+    if (!node.data?.autodocGenerated) return;
+    generated += 1;
+    visit(node, child => assert.equal(child.data?.origin, undefined));
+  });
+  assert.ok(generated > 0);
 });
 
 test('renderer rejects unsupported nodes instead of silently dropping content', async () => {

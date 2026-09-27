@@ -24,7 +24,7 @@ pixi run npm run myst:browser
 ```
 
 `myst:test` compiles the package, invokes the real `myst build --html --strict`
-command, and checks its rendered output and failure cases. The three-page site
+command, and checks its rendered output and failure cases. The four-page site
 is written to `experiments/myst-theme/project/_build/html/`. The first build
 downloads the browser Python environment. `myst:browser` serves the built site
 temporarily and tests it in Chromium, including actual Python execution. Install
@@ -81,6 +81,10 @@ as in the existing Astro integration.
   leaves those copies to the theme; MyST only adds user `static_files` afterwards.
 - Unsupported syntax, unresolved references, conflicting presentation tags,
   and unsupported renderer nodes fail explicitly.
+- The standalone [MyST autodoc plugin](../../packages/myst-autodoc/README.md)
+  generates a Python API page before reference resolution. The launcher merges
+  typed Python inventory entries into the published site after rendering.
+  Generated API prose does not receive Markdown source-selection offsets.
 
 ## What remains before migration
 
@@ -88,7 +92,7 @@ This is a feasibility test, not a replacement for the package's current loader.
 
 | Area | Current limitation |
 | --- | --- |
-| Python API documentation | `{autodoc}` fails. Griffe/Pydocs generation and API targets need to enter MyST's document/reference pipeline before this renderer runs. |
+| Python API documentation | The standalone Griffe plugin supports authored API pages and typed inventories. Automatic API page trees, inherited members, and constructor-prose merging remain unsupported. |
 | Inline execution | `{eval}` fails explicitly. MyST transforms inline results before a theme receives the tree; preserving source-order execution requires moving our executor into an earlier MyST hook. |
 | Notebook provenance | `.ipynb` prose does not receive source offsets. Mapping MyST's notebook nodes to our generated MyST representation needs a separate adapter. |
 | Included provenance | Filtered includes fail explicitly. The document hook does not provide the original selected source slice needed by our existing mapper. |
@@ -99,5 +103,5 @@ This is a feasibility test, not a replacement for the package's current loader.
 The experiment reuses package internals from `dist/` without changing the public
 integration or browser runtime. Its files are outside the npm archive. It has
 not been installed as a MyST theme in Pymablock. A migration should first move
-execution into a MyST plugin and integrate API definitions, then validate the
+execution into a MyST plugin, then validate the
 packed result in that consumer.

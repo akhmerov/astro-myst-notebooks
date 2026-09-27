@@ -1,5 +1,16 @@
 import { test, expect } from '@playwright/test';
 
+test('generated API signatures, prose, and references render in the theme', async ({ page }) => {
+  await page.goto('api/');
+  await expect(page.getByRole('heading', { name: 'Python API', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'theme_api.triangular', exact: true })).toBeVisible();
+  await expect(page.locator('.sl-markdown-content')).toContainText('The last integer to include.');
+  const link = page.locator('.sl-markdown-content a').filter({ hasText: /^theme_api.triangular$/ }).first();
+  await link.click();
+  await expect(page).toHaveURL(/#py-/);
+  await expect(page.locator('.jupyter-cell')).toHaveCount(0);
+});
+
 test('MyST references and exact included-source selections survive Starlight rendering', async ({ page }) => {
   await page.goto('./');
   await expect(page.locator('h1')).toHaveText('MyST with Astro');
