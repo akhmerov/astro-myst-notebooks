@@ -105,10 +105,13 @@ await writeFile('count',String(count)); await writeFile(output+'/xeus/kernel.jso
   const context={root:url,cache:new URL('cache/',url),log:()=>{}};
   const first=await buildEnvironment(options,context);
   await writeFile(join(root,'prose.md'),'An edit that does not affect Python.');
-  assert.equal((await buildEnvironment(options,context)).directory,first.directory);
+  const reused = await buildEnvironment(options,context);
+  assert.equal(reused.directory,first.directory);
+  assert.equal(reused.version,first.version, 'unchanged artifacts retain their browser cache identity');
   assert.equal(await readFile(join(root,'count'),'utf8'),'1');
   await writeFile(join(first.directory,'xeus/kernel.json'),'corrupt');
-  await buildEnvironment(options,context);
+  const rebuilt = await buildEnvironment(options,context);
+  assert.notEqual(rebuilt.version,first.version, 'changed output must invalidate browser caches even with identical inputs');
   assert.equal(await readFile(join(root,'count'),'utf8'),'2');
   await writeFile(script,'process.exit(1)');
   await assert.rejects(buildEnvironment({...options,refresh:true},context));

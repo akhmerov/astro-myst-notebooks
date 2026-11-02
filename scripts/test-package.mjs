@@ -1,12 +1,16 @@
-import { access, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
 import assert from 'node:assert/strict';
+const { values } = parseArgs({ options: {
+  api: { type: 'boolean' }, browser: { type: 'boolean' }, archive: { type: 'string' },
+} });
 const pkg = JSON.parse(await readFile('package.json','utf8'));
-const archive = resolve(`astro-myst-notebooks-${pkg.version}.tgz`);
-const api = process.argv.includes('--api');
+const archive = values.archive ?? resolve(`astro-myst-notebooks-${pkg.version}.tgz`);
+const api = values.api;
 const root = await mkdtemp(join(tmpdir(),'notebooks-release-'));
 function run(command,args,cwd=root) {
   const commandArgs = command === 'pixi' ? [args[0], '--manifest-path', join(root, 'pixi.toml'), ...args.slice(1)] : args;
@@ -22,10 +26,16 @@ await writeFile(join(root, 'docs/src/content/docs/features.md'), [
   '---', 'title: Packaged authoring', '---', '',
   '```{code-cell} python', 'answer = 6 * 7', '```', '',
   'The packaged result is {eval}`answer`.', '',
+  '```{code-cell} python', 'from IPython.display import display',
+  'display({"application/vnd.plotly.v1+json": {"data": [{"x": [1, 2, 3], "y": [1, 4, 2], "type": "scatter"}], "layout": {"height": 280, "yaxis": {"title": {"text": "$C/k_B$"}}}}}, raw=True)',
+  '```', '',
   '::::{tab-set}', ':::{tab-item} First', 'Packaged first tab.', ':::',
   ':::{tab-item} Second', 'Packaged second tab.', ':::', '::::', '',
   '::::{grid} 1 2', ':::{card} Welcome', ':link: index.md',
   'Packaged card.', ':::', '::::', '',
+  '(packaged-equation)=', '```{math}',
+  String.raw`\mathcal{H}=\begin{pmatrix} H_0^{AA}&0\\0&H_0^{BB}\end{pmatrix}+\sum_{n\ge1}H_n^{\prime},\qquad U=\sum_{n=0}^{\infty}U_n`,
+  '```', '',
 ].join('\n'));
 await writeFile(join(root, 'docs/src/content/docs/notebook.ipynb'), JSON.stringify({
   nbformat: 4, nbformat_minor: 5,
@@ -44,9 +54,13 @@ export const onRequest = defineMiddleware((_context, next) => {
   return next();
 });
 `);
+const configPath = join(root, 'docs/astro.config.mjs');
+const config = await readFile(configPath, 'utf8');
+await writeFile(configPath, config.replace('notebooks({', "notebooks({ presentation: { input: 'hide' },"));
 run('pixi',['run','-e','docs','docs']);
 const html=await readFile(join(root,'docs/dist/index.html'),'utf8');
 assert.match(html,/Hello from Jupyter/);
+assert.match(html, /<details class="jupyter-input-area jupyter-input-disclosure">/);
 const features = await readFile(join(root, 'docs/dist/features/index.html'), 'utf8');
 assert.match(features, /role="tab"/);
 assert.match(features, /class="card/);
@@ -65,14 +79,28 @@ for (const path of [...exportTargets(installed.exports), ...Object.values(instal
 assert.equal(installed.scripts, undefined, 'archive must not run checkout-only build hooks');
 assert.equal(installed.devDependencies, undefined, 'archive must not require development dependencies');
 assert.ok(!Object.keys(installed.dependencies).some(name=>/^thebe|^@jupyter|^@lumino/.test(name)));
+const runtime = join(root, 'docs/dist/notebooks');
+const deployedFiles = await readdir(runtime, { recursive: true });
+assert.ok(!deployedFiles.some(name => name.endsWith('.map')), 'debug source maps must not consume deployment space');
+let runtimeBytes = 0;
+for (const name of deployedFiles.filter(name => name.endsWith('.js'))) {
+  runtimeBytes += (await stat(join(runtime, name))).size;
+  assert.equal(/(?:^|\n)\/\/[#@] sourceMappingURL=[^\n]+\s*$/.test(await readFile(join(runtime, name), 'utf8')), false, 'deployed scripts must not reference omitted maps');
+}
+assert.ok(runtimeBytes < 20_000_000, `Notebook JavaScript exceeds the 20 MB deployment budget: ${runtimeBytes} bytes`);
+await access(join(packageRoot, 'dist/notebooks/browser/client.js.map'));
 const modules=JSON.parse(await readFile(join(root,'docs/package-lock.json'),'utf8')).packages;
 assert.ok(!Object.keys(modules).some(name=>/node_modules\/(thebe-lite|@jupyterlite\/pyodide-kernel)$/.test(name)));
 run('pixi',['run','-e','docs','--dry-run','docs-dev']);
 run('pixi',['run','-e','docs','--dry-run','docs-dev','51559']);
 // Rebuild under a prefix, exercising the same cached environment.
+await writeFile(configPath, config.replace('notebooks({', "notebooks({ presentation: { input: 'remove' },"));
 run('pixi',['run','-e','docs','npm','--prefix','docs','run','build','--','--base','/manual/']);
-assert.match(await readFile(join(root,'docs/dist/index.html'),'utf8'),/\/manual\/_astro\//);
-if (process.argv.includes('--browser')) {
+const prefixed = await readFile(join(root,'docs/dist/index.html'),'utf8');
+assert.match(prefixed,/\/manual\/_astro\//);
+assert.match(prefixed, /class="jupyter-static-input"><\/div>/);
+assert.doesNotMatch(prefixed, /class="jupyter-input-area jupyter-input-disclosure"/);
+if (values.browser) {
   run(process.execPath, [fileURLToPath(new URL('./check-consumer-browser.mjs', import.meta.url)),
     join(root, 'docs'), process.env.DOCS_PORT ?? '51488', '/manual/']);
 }

@@ -1,6 +1,6 @@
 {
   "name": "astro-myst-notebooks",
-  "version": "0.3.0",
+  "version": "0.4.2",
   "type": "module",
   "description": "MyST documents, Jupyter execution, source maps, and browser notebooks for Astro and Starlight",
   "license": "BSD-2-Clause",
@@ -65,6 +65,7 @@
     "docs:dev": "npm run build && cd docs && astro dev",
     "docs:preview": "cd docs && astro preview",
     "docs:test": "npm run docs:build && tsc --noEmit -p docs && node --test docs/tests/build.test.mjs",
+    "predocs:test:browser": "node scripts/prepare-browser-tests.mjs",
     "docs:test:browser": "playwright test --config docs/playwright.config.ts",
     "package": "npm run build && node scripts/pack.mjs",
     "prepack": "node scripts/pack.mjs --guard",
@@ -110,6 +111,9 @@
     "myst-transforms": {
       "katex": "^0.16.47"
     },
+    "rehype-katex": {
+      "katex": "$katex"
+    },
     "jest-junit": {
       "uuid": "^11.1.1"
     }
@@ -147,6 +151,7 @@
     "@lumino/coreutils": "^2.2.3",
     "@lumino/widgets": "^2.9.0",
     "mermaid": "^12.0.0",
+    "mathjax": "3.2.2",
     "thebe": "^0.9.3",
     "thebe-core": "^0.5.0",
     "plotly.js-dist-min": "^4.1.0",
@@ -178,6 +183,7 @@
     "myst-roles",
     "myst-to-html",
     "myst-transforms",
-    "citation-js-utils"
+    "citation-js-utils",
+    "rehype-katex"
   ]
 }

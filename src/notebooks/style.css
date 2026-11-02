@@ -138,13 +138,9 @@ jupyter-notebook { display: block; }
 }
 
 .jupyter-output {
-  margin-block: 0.8rem 1.6rem;
-  padding: 1rem 1.25rem;
-  border: 1px solid var(--sl-color-hairline-light);
-  border-left: 3px solid var(--sl-color-accent);
-  border-radius: 0 0.5rem 0.5rem 0;
+  margin-block: 0.8rem 1.2rem;
   overflow-x: auto;
-  font-size: 0.92rem;
+  font-size: inherit;
 }
 .jupyter-output pre { margin: 0; padding: 0; background: transparent; border: 0; }
 .jupyter-output img { display: block; margin: auto; max-width: 100%; height: auto; }
@@ -153,14 +149,31 @@ jupyter-notebook { display: block; }
   color: #25303b;
 }
 .jupyter-output svg { max-width: 100%; height: auto; }
-.jupyter-output .js-plotly-plot svg { max-width: none; height: 100%; }
-.jupyter-plotly { min-height: 420px; width: 100%; }
-.jupyter-input { border: 1px solid var(--sl-color-hairline-light); border-radius: 0.5rem; padding: 0.75rem 1rem; }
-.jupyter-input summary { cursor: pointer; color: var(--sl-color-accent-high); font-size: 0.875rem; }
+/* Plotly assigns SVG dimensions, including small nested SVG math labels. */
+.jupyter-output .js-plotly-plot svg { max-width: none; height: auto; }
+.jupyter-plotly { height: 420px; width: 100%; }
+.jupyter-cell :is(.jupyter-input-disclosure, .jupyter-output-disclosure, .jupyter-cell-disclosure) {
+  border: 1px solid var(--sl-color-hairline-light); border-radius: 0.5rem; padding: 0.75rem 1rem;
+}
+.jupyter-cell details > summary { cursor: pointer; color: var(--sl-color-accent-high); font-size: 0.875rem; }
+/* Filtered live streams leave an empty output widget, without an empty row. */
+.jupyter-live-output .jp-OutputArea-child:has(.jupyter-output-suppressed) { display: none; }
 .jupyter-output table { width: 100%; font-variant-numeric: tabular-nums; }
+/* {eval} results stay inside the sentence rather than becoming an output block. */
+.jupyter-output.jupyter-inline {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+  font-size: inherit;
+  background: transparent;
+  color: inherit;
+}
+.jupyter-output.jupyter-inline img { display: inline-block; margin: 0; max-height: 1.6em; width: auto; vertical-align: middle; }
 .katex-display { overflow-x: auto; overflow-y: hidden; padding-block: 0.35rem; }
 
-@media (max-width: 50rem) { .jupyter-output { padding: 0.75rem; } }
 .jupyter-output table.dataframe { border: 0; border-collapse: collapse; }
 .jupyter-output table.dataframe :is(th, td) {
   border: 0;

@@ -1,6 +1,7 @@
 import type { ThebeGlobal } from 'thebe';
 import type { ThebeNotebook, ThebeServer, ThebeSession, ThebeEventCb } from 'thebe-core';
 import type { BrowserOptions } from './types.js';
+import { prepareRuntimeCache } from './runtime-cache.js';
 
 let runtime: Promise<ThebeGlobal> | undefined;
 let disposeXeus: typeof import('./xeus-server.js').disposeXeusServer | undefined;
@@ -23,6 +24,7 @@ function script(src: string, timeout: number) {
 
 export function loadRuntime(options: BrowserOptions): Promise<ThebeGlobal> {
   return runtime ??= (async () => {
+    await prepareRuntimeCache(new URL(options.assetBase + '/', location.href));
     if (!document.getElementById('jupyter-config-data')) {
       const config = document.createElement('script');
       config.id = 'jupyter-config-data';
@@ -122,6 +124,10 @@ export class NotebookSession {
     if (this.closed) { await releaseSession(session, this.server); return; }
     this.session = session;
     this.notebook!.attachSession(session);
+    // Creating the connection does not mean the worker has finished loading
+    // Python and its packages. Wait for a real kernel reply before reporting ready.
+    await session.kernel.info;
+    if (this.closed) return;
     onSetup();
     const code = [
       ...(this.options.wheelPath ? ['import sys', `sys.path.insert(0, ${JSON.stringify(this.options.wheelPath)})`] : []),

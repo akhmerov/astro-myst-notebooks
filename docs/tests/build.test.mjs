@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, access } from 'node:fs/promises';
+import { readFile, readdir, access } from 'node:fs/promises';
 import { fromHtml } from 'hast-util-from-html';
 import { visit } from 'unist-util-visit';
 
 const output = new URL('../dist/', import.meta.url);
 const base = (process.env.DOCS_BASE ?? '/').replace(/\/$/, '');
-const names = ['', 'setup', 'walkthrough', 'authoring', 'notebook', 'browser', 'reference', 'development'];
+const names = ['', 'setup', 'walkthrough', 'plots', 'authoring', 'notebook', 'presentation', 'browser', 'reference', 'development'];
 const pages = new Map(await Promise.all(names.map(async name => {
   const html = await readFile(new URL(`${name ? name + '/' : ''}index.html`, output), 'utf8');
   return [name, fromHtml(html)];
@@ -41,6 +41,23 @@ test('the documentation renders real Jupyter results and includes hidden setup',
   assert.ok(nodes.some(node => node.properties.id === 'triangular-sum'));
 });
 
+test('the shipped stylesheet matches the rendered KaTeX and inline output markup', async () => {
+  const tree = pages.get('walkthrough');
+  const nodes = elements(tree);
+  const links = nodes.filter(node => node.tagName === 'link' && node.properties.rel?.includes('stylesheet'));
+  assert.ok(links.length);
+  const css = (await Promise.all(links.map(link => readFile(new URL(link.properties.href.slice(base.length + 1), output), 'utf8')))).join('\n');
+  // Equation numbers are positioned by the KaTeX stylesheet; a KaTeX version
+  // mismatch between the renderer and the shipped CSS leaves them inline.
+  const equation = nodes.find(node => node.properties.id === 'triangular-sum');
+  const tag = elements(equation).find(node => /(^|-)tag$/.test(node.properties.className?.join(' ') ?? ''));
+  assert.ok(tag, 'the labelled equation carries a number');
+  const selector = `.katex-display>.katex>.katex-html>.${tag.properties.className.join('.')}`;
+  assert.match(css, new RegExp(`${selector.replace(/[.>]/g, '\\$&')}\\{[^}]*position:absolute`));
+  // {eval} results must not inherit the block output box.
+  assert.match(css, /\.jupyter-output\.jupyter-inline\{[^}]*display:inline/);
+});
+
 test('layout constructs render on the authoring page', () => {
   const nodes = elements(pages.get('authoring'));
   const diagram = nodes.find(node => node.tagName === 'pre' && node.properties.className?.includes('mermaid'));
@@ -67,7 +84,7 @@ test('a Jupyter notebook renders and executes like a MyST page', async () => {
   assert.ok(nodes.some(node => node.tagName === 'h1' && text(node) === 'Notebook source'));
   const cells = nodes.filter(node => node.properties.className?.includes('jupyter-cell'));
   assert.equal(cells.length, 2);
-  assert.equal(cells[0].properties.dataTags, 'hide-output');
+  assert.equal(cells[0].properties.dataTags, 'remove-output');
   const outputs = nodes.filter(node => node.properties.className?.includes('jupyter-output'));
   assert.deepEqual(outputs.map(text), ['5', '55']);
   assert.doesNotMatch(text(pages.get('notebook')), /Raw cells are not published/);
@@ -118,7 +135,11 @@ test('all local page links and fragment targets exist under the deployment base'
 });
 
 test('the published site includes the browser runtime and source-selection code', async () => {
-  for (const asset of ['thebe/index.js', 'thebe/thebe.css', 'thebe/comlink.worker.js', 'thebe/coincident.worker.js', 'thebe/xeus' ]) {
+  const versions = await readdir(new URL('thebe/', output));
+  assert.equal(versions.length, 1);
+  assert.match(versions[0], /^[a-f0-9]{20}$/);
+  for (const path of ['index.js', 'thebe.css', 'comlink.worker.js', 'coincident.worker.js', 'xeus' ]) {
+    const asset = `thebe/${versions[0]}/${path}`;
     await access(new URL(asset, output));
   }
   const tree = pages.get('walkthrough');

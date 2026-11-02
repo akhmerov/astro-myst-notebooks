@@ -24,7 +24,7 @@ Every cell on this page shares one kernel. This hidden setup cell imports the
 display helpers used later; it also runs when you choose **Run all**.
 
 ```{code-cell} python
-:tags: [hide-cell]
+:tags: [remove-cell]
 
 from IPython.display import display
 ```

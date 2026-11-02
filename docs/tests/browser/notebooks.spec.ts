@@ -1,6 +1,32 @@
 import { test, expect } from '@playwright/test';
 import type {} from '../../../dist/notebooks/source-selection.js';
 
+test('lists keep compact spacing and admonitions use themed, collapsible callouts', async ({ page }) => {
+  await page.goto('authoring/');
+  const compact = page.locator('.sl-markdown-content ul').filter({ hasText: 'Set up the environment.' });
+  const loose = page.locator('.sl-markdown-content ol').filter({ hasText: 'Set up the environment.' });
+  await expect(compact.locator(':scope > li > p')).toHaveCount(0);
+  await expect(loose.locator(':scope > li > p')).toHaveCount(3);
+  const gap = async (list: typeof compact) => list.evaluate(element => {
+    const items = element.querySelectorAll(':scope > li');
+    return items[1].getBoundingClientRect().top - items[0].getBoundingClientRect().bottom;
+  });
+  expect(await gap(compact)).toBeLessThanOrEqual(8);
+  expect(await gap(loose)).toBeGreaterThan(await gap(compact));
+  const dropdown = page.locator('details.project-note');
+  await expect(dropdown.locator('p')).toBeHidden();
+  await dropdown.locator('summary').click();
+  await expect(dropdown.locator('p')).toBeVisible();
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
+    const colors = await page.locator('.sl-markdown-content .starlight-aside').evaluateAll(elements =>
+      elements.map(element => getComputedStyle(element).backgroundColor));
+    expect(colors).toHaveLength(2);
+    expect(colors[0]).not.toBe(colors[1]);
+    expect(colors).not.toContain('rgba(0, 0, 0, 0)');
+  }
+});
+
 test('mounted files and directories are readable in browser Python and restored on restart', async ({ page }) => {
   await page.goto('browser/');
   const cell = page.locator('.jupyter-cell').first();
@@ -9,6 +35,7 @@ test('mounted files and directories are readable in browser Python and restored 
   const controls = page.locator('[data-notebook-toolbar] [data-thebe-controls]');
   await expect(controls).toHaveAttribute('data-state', 'ready', { timeout: 150000 });
   await controls.getByRole('button', { name: 'Run all', exact: true }).click();
+  await expect(controls.getByRole('status')).toHaveText('All cells completed.', { timeout: 60000 });
   await expect(cell.locator('.jupyter-live-output')).toContainText('Measurements bundled with the documentation.');
   await expect(cell.locator('.jupyter-live-output')).toContainText('Measured total: 42');
   const source = await cell.getAttribute('data-source');
@@ -23,6 +50,7 @@ test('mounted files and directories are readable in browser Python and restored 
     (element as HTMLElement & { CodeMirror: { setValue(value: string): void } }).CodeMirror.setValue(code!);
   }, source);
   await controls.getByRole('button', { name: 'Run all', exact: true }).click();
+  await expect(controls.getByRole('status')).toHaveText('All cells completed.', { timeout: 60000 });
   await expect(cell.locator('.jupyter-live-output')).toContainText('Measurements bundled with the documentation.');
   await expect(cell.locator('.jupyter-live-output')).toContainText('Measured total: 42');
 });
@@ -98,7 +126,7 @@ test('the authored notebook runs in real browser Python and resets with edits pr
 test('source selections are ready at page load and activation waits for its controls', async ({ page }) => {
   let release!: () => void;
   const loaded = new Promise<void>(resolve => { release = resolve; });
-  await page.route('**/notebooks/element.js', async route => { await loaded; await route.continue(); });
+  await page.route('**/notebooks/*/element.js', async route => { await loaded; await route.continue(); });
   try {
     await page.goto('walkthrough/');
     expect(await page.evaluate(() => typeof window.mystSourceMap?.resolve)).toBe('function');
@@ -110,14 +138,14 @@ test('source selections are ready at page load and activation waits for its cont
 });
 
 test('a failed start retries interactivity and navigation clears the title controls', async ({ page }) => {
-  await page.route('**/thebe/index.js', route => route.abort());
+  await page.route('**/thebe/*/index.js', route => route.abort());
   await page.goto('walkthrough/');
   const controls = page.locator('[data-notebook-toolbar] [data-thebe-controls]');
   await page.locator('.jupyter-cell').first().getByRole('button', { name: 'Enable interactivity', exact: true }).click();
   await expect(controls).toHaveAttribute('data-state', 'error');
   await expect(page.locator('.cell-interactivity-status')).toContainText('Could not download');
   await expect(page.locator('.jupyter-outputs').filter({ hasText: 'Sum: 36' })).toBeVisible();
-  await page.unroute('**/thebe/index.js');
+  await page.unroute('**/thebe/*/index.js');
   await page.locator('.jupyter-cell').first().getByRole('button', { name: 'Enable interactivity', exact: true }).click();
   await expect(controls).toHaveAttribute('data-state', 'ready', { timeout: 150000 });
   await controls.getByRole('button', { name: 'Run all', exact: true }).click();

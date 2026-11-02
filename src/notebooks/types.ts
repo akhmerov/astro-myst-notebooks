@@ -1,3 +1,13 @@
+export type Visibility = 'show' | 'hide' | 'remove';
+export interface PresentationOptions {
+  /** show: visible; hide: a disclosure; remove: no reader-visible content. */
+  input?: Visibility;
+  output?: Visibility;
+  cell?: Visibility;
+  stdout?: 'show' | 'remove';
+  stderr?: 'show' | 'remove';
+}
+
 export interface BrowserOptions {
   wheelPath?: string;
   assetBase: string;

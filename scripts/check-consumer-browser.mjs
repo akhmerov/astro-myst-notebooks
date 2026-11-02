@@ -32,5 +32,22 @@ try {
   await page.getByRole('button',{name:'Run all',exact:true}).click();
   await notebook.locator('.jupyter-live-output').filter({hasText:'Recovered'}).waitFor({timeout:60000});
   assert.deepEqual(errors,[]);
+  await page.goto(`http://127.0.0.1:${port}${base}features/`);
+  await page.evaluate(() => document.fonts.ready);
+  const equation = await page.locator('#packaged-equation .katex-html').evaluate(element => {
+    const tag = element.querySelector('.katex-tag');
+    if (!tag) throw new Error('Missing styled equation number');
+    return { position: getComputedStyle(tag).position, tagLeft: tag.getBoundingClientRect().left,
+      formulaRight: Math.max(...Array.from(element.querySelectorAll(':scope > .katex-base'), node => node.getBoundingClientRect().right)) };
+  });
+  assert.equal(equation.position, 'absolute', 'equation numbering must use the installed KaTeX stylesheet');
+  assert.ok(Number.isFinite(equation.formulaRight), 'equation formula must have measurable bounds');
+  assert.ok(equation.tagLeft > equation.formulaRight + 8, 'equation number must be separate from the formula');
+  const plot = page.locator('[data-plotly][data-rendered="true"]');
+  await plot.waitFor();
+  assert.equal((await plot.locator('.main-svg').first().boundingBox()).height, 280);
+  assert.ok((await plot.locator('svg.ytitle-math').boundingBox()).height > 10);
+  assert.ok(await plot.locator('svg.ytitle-math path').count() > 0, 'packaged Plotly must typeset math locally');
+  assert.deepEqual(errors,[]);
   console.log(`Packed consumer browser execution and infinite-loop reset passed at ${base}`);
 } finally {await browser?.close();await server.stop();}

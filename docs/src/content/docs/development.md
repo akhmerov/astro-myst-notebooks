@@ -60,12 +60,14 @@ DOCS_BASE=/manual/ pixi run docs-test
 Browser checks use Playwright against the built site:
 
 ```sh
-pixi run npx playwright install chromium
+pixi run npx playwright install chromium firefox
 pixi run docs-browser
 ```
 
-Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` to use an existing Chromium binary, or
-`DOCS_PORT` to choose the local test server port. The browser suite checks the
+Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` or `PLAYWRIGHT_FIREFOX_EXECUTABLE` to use
+existing browser binaries, or `DOCS_PORT` to choose the local test server port.
+The npm browser-test setup installs Firefox and its system dependencies in CI.
+The browser suite checks the
 rendered page, source selections, and real Python activation, execution, and
 reset. Initial browser-runtime downloads require network access.
 
@@ -118,19 +120,54 @@ available for 30 days; keep a local copy for consumers that depend on one.
 To verify a downloaded archive, run `sha256sum -c SHA256SUMS` in the extracted
 artifact directory. The workflow has no npm publication step.
 
+GitHub prereleases retain a tested CI archive and its checksum at a fixed,
+public download URL. A preview tag identifies the source commit; its assets
+must not be replaced with a different build. These attachments are distinct
+from GitHub's automatically generated source archives, which lack the compiled
+package assets. To check a published attachment through the same consumer flow:
+
+```sh
+pixi run npm run release:check -- --archive https://github.com/akhmerov/astro-myst-notebooks/releases/download/v0.4.2/astro-myst-notebooks-0.4.2.tgz --api --browser
+```
+
 To initialize another project from an unpublished archive, run from that
 project's root (use an absolute archive path):
 
 ```sh
-npm exec --package=/path/to/astro-myst-notebooks-0.3.0.tgz -- astro-myst-notebooks init --package /path/to/astro-myst-notebooks-0.3.0.tgz
+npm exec --package=/path/to/astro-myst-notebooks-0.4.2.tgz -- astro-myst-notebooks init --package /path/to/astro-myst-notebooks-0.4.2.tgz
+```
+
+## Publish the documentation
+
+The [public documentation](https://akhmerov.github.io/astro-myst-notebooks/)
+tracks `main` and displays an alpha notice on every page. It can describe changes
+newer than the most recent downloadable preview.
+
+The Deploy documentation workflow builds with the Pages origin and repository
+path, checks the output, and runs the browser notebook tests before deploying
+`docs/dist/`. GitHub Pages must use **GitHub Actions** as its publishing source.
+Pushes to `main` deploy automatically; the workflow can also be run manually.
+Pull requests do not deploy.
+
+To check the same deployment path locally:
+
+```sh
+DOCS_SITE=https://akhmerov.github.io DOCS_BASE=/astro-myst-notebooks pixi run docs-test
+DOCS_SITE=https://akhmerov.github.io DOCS_BASE=/astro-myst-notebooks pixi run npm run docs:test:browser
 ```
 
 ## Dependency maintenance
 
-The release build bundles browser JavaScript and copies the supported classic
+The release build minifies browser JavaScript and copies the supported classic
 Xeus workers. Consumers serve these files unchanged; their Astro build does not
 compile Jupyter workers. Exact bundled package identities and license notices
 are included in `dist/notebooks/browser/`.
+
+JavaScript debug source maps remain in the package for debugging, but are not
+linked from the scripts or copied into generated sites. MyST source-selection
+metadata is separate and remains in every rendered page. The shared notebook
+JavaScript has a 20 MB deployment budget, checked when testing the archive.
+The consumer's Python environment and rendered outputs add to its total site size.
 
 The tested MyST dependency graph is bundled into the npm archive. This carries
 patched transitive versions and matching dependency declarations to consumers,
