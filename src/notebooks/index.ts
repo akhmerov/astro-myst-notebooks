@@ -2,15 +2,17 @@ import type { AstroIntegration } from 'astro';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 import { createHash } from 'node:crypto';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
+import { lookup } from 'mrmime';
 import { checkEnvironment } from '../jupyter.mjs';
 import { notebookPaths, sitePrefix } from '../paths.js';
 import { buildEnvironment } from './build-environment.js';
 import type { BrowserOptions, ExecutionOptions, InteractiveOptions, PresentationOptions } from './types.js';
 import { validatePresentation } from '../presentation.js';
-import { registerEngine, buildEngine, publishEngine } from '../engine/project.mjs';
+import { registerEngine, publishEngine } from '../engine/project.mjs';
 
 export interface Options {
   /** Generic Python API documentation compiled by the MyST autodoc workspace. */
@@ -40,7 +42,7 @@ export default function notebooks(options: Options = {}): AstroIntegration {
   return {
     name: 'astro-myst-notebooks',
     hooks: {
-      'astro:build:done': async ({ dir }) => { if (engine) await publishEngine(engine, dir); },
+      'astro:build:done': async ({ dir }) => { if (engine?.manifest) await publishEngine(engine, dir); },
       'astro:config:setup': async (setup) => {
         const { config, updateConfig, injectScript, command, logger } = setup;
         const paths = notebookPaths(config);
@@ -52,8 +54,8 @@ export default function notebooks(options: Options = {}): AstroIntegration {
         const execution = { ...options.execution, cwd: fileURLToPath(options.execution?.cwd ?? config.root) };
         const interactive = options.interactive !== false;
         if (command === 'build' || command === 'dev') await checkEnvironment(execution);
-        engine = registerEngine(config, options);
-        if (command === 'build' || command === 'dev') await buildEngine(engine);
+        const project = registerEngine(config, options);
+        engine = project;
         injectScript('page-ssr', `import ${JSON.stringify(fileURLToPath(new URL('./style.css', import.meta.url)))}; import ${JSON.stringify(require.resolve('katex/dist/katex.min.css'))};`);
         injectScript('page', `import ${JSON.stringify(fileURLToPath(new URL('./source-selection.js', import.meta.url)))};`);
         const prefix = sitePrefix(config);
@@ -81,7 +83,27 @@ export default function notebooks(options: Options = {}): AstroIntegration {
             { src: posix(xeus), dest: `${assetDestination}/xeus`, rename: { stripBase: depth } });
           injectScript('page', `const notebookBase = ${JSON.stringify(runtimeBase)}; import(/* @vite-ignore */ notebookBase + '/element.js').then(({ defineNotebooks }) => defineNotebooks(${JSON.stringify(browser)}));`);
         }
-        updateConfig({ vite: { plugins: viteStaticCopy({ targets }) } });
+        updateConfig({ vite: { plugins: [...viteStaticCopy({ targets }), {
+          name: 'astro-myst-public-assets',
+          configureServer(server) {
+            server.middlewares.use(async (request, response, next) => {
+              if (request.method !== 'GET' && request.method !== 'HEAD') return next();
+              const pathname = request.url?.split('?', 1)[0];
+              if (!pathname?.startsWith(`${prefix}/`)) return next();
+              const file = project.publicAssets.get(pathname.slice(prefix.length));
+              if (!file) return next();
+              try {
+                const bytes = await readFile(file);
+                response.setHeader('Content-Type', lookup(file) ?? 'application/octet-stream');
+                response.setHeader('Content-Length', bytes.length);
+                response.end(request.method === 'HEAD' ? undefined : bytes);
+              } catch (error) {
+                if ((error as NodeJS.ErrnoException).code === 'ENOENT') return next();
+                next(error);
+              }
+            });
+          },
+        }] } });
       },
     },
   };

@@ -25,7 +25,7 @@ const external=await mkdtemp(join(tmpdir(),'astro-engine-external-'));
 const dataFile=join(external,'input.csv');
 const apiRoot=join(external,'python');
 const apiPackage=join(apiRoot,'reload_api');
-const content=join(root,'src/content/docs');
+const content=join(root,'manual-pages');
 const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function command(executable,args,{timeout=120000}={}) {
   const child=spawn(executable,args,{cwd:root,env:{...process.env,ASTRO_TELEMETRY_DISABLED:'1'},stdio:['ignore','pipe','pipe'],detached:process.platform!=='win32'});
@@ -69,7 +69,8 @@ const cell=[
 ].join('\n');
 const indexSource=prose=>frontmatter('Home')+`The project's "quoted" sentence.\n\nVisit https://example.org/source for more.\n\n${prose}\n\n`+
   '```{include} _parts/fragment.md\n```\n\n'+`\`\`\`{code-cell} python\n${cell}\n\`\`\`\n`;
-const config=extra=>`version: 1\nproject:\n  title: Engine consumer\n  toc:\n    - file: src/content/docs/index.md\n    - file: src/content/docs/guide/topic.md\n${extra?'    - file: src/content/docs/added.md\n':''}`;
+const config=extra=>`version: 1\nproject:\n  title: Engine consumer\n  toc:\n    - file: manual-pages/index.md\n    - file: manual-pages/guide/topic.md\n${extra?'    - file: manual-pages/added.md\n':''}`;
+await mkdir(join(root,'src'));
 await mkdir(join(content,'guide'),{recursive:true}); await mkdir(join(content,'_parts'),{recursive:true});
 await mkdir(apiPackage,{recursive:true});
 await writeFile(dataFile,'offset\n0\n');
@@ -79,7 +80,7 @@ await writeFile(join(root,'package.json'),JSON.stringify({name:'engine-dev-consu
   'astro-myst-notebooks':`file:${resolve(archive)}`,astro:astroPackage.version,'@astrojs/starlight':starlightPackage.version,
 }},null,2));
 await writeFile(join(root,'astro.config.mjs'),`import {defineConfig} from 'astro/config';\nimport starlight from '@astrojs/starlight';\nimport notebooks from 'astro-myst-notebooks/starlight';\nexport default defineConfig({base:'/manual/',integrations:[starlight({title:'Consumer controls Astro',plugins:[notebooks({interactive:false,execution:{cwd:new URL('./',import.meta.url),timeout:5,dependencies:[new URL(${JSON.stringify(pathToFileURL(dataFile).href)})]},api:{modules:['reload_api'],searchPaths:[new URL(${JSON.stringify(pathToFileURL(apiRoot).href)})]}})],sidebar:[{label:'Home',slug:''},{label:'Nested topic',slug:'guide/topic'}]})]});\n`);
-await writeFile(join(root,'src/content.config.ts'),"import {notebookCollections} from 'astro-myst-notebooks/starlight/content';\nexport const collections=notebookCollections();\n");
+await writeFile(join(root,'src/content.config.ts'),"import {notebookCollections} from 'astro-myst-notebooks/starlight/content';\nexport const collections=notebookCollections({base: new URL('../manual-pages/', import.meta.url)});\n");
 await writeFile(join(root,'myst.yml'),config(false));
 await writeFile(join(root,'helper.py'),'VALUE = 41\n');
 await writeFile(join(content,'index.md'),indexSource('Original prose.'));
@@ -119,6 +120,17 @@ async function until(label,callback,timeout=45000){
   throw new Error(`Timed out: ${label}\n${error?.message??''}\n${logs.slice(-10000)}`);
 }
 async function page(path=''){const response=await fetch(url+path,{signal:AbortSignal.timeout(5000)});return response.status===200?await response.text():''}
+async function includedImage(html) {
+  let image;
+  visit(fromHtml(html), 'element', node => {
+    if (node.tagName === 'img' && node.properties.alt === 'Included image') image = node.properties.src;
+  });
+  assert.ok(image?.startsWith('/manual/'));
+  const response = await fetch(new URL(image, url), { signal: AbortSignal.timeout(5000) });
+  assert.ok(response.ok, `Dev asset ${image} returned ${response.status}`);
+  assert.match(response.headers.get('content-type') ?? '', /image\/svg\+xml/);
+  return response.text();
+}
 async function count(){return Number(await readFile(join(root,'runs.txt'),'utf8'))}
 async function settled(expected,label){
   // A rebuild can reuse the execution cache and still loop. Observe MyST's
@@ -135,7 +147,8 @@ async function settled(expected,label){
   assert.equal((await stat(manifest)).mtimeMs,modified,`${label}: MyST kept rebuilding after the page reloaded`);
 }
 try {
-  await until('initial dev render',async()=>{const h=await page();return h.includes('Computed value: 41')&&h});
+  html=await until('initial dev render',async()=>{const h=await page();return h.includes('Computed value: 41')&&h});
+  assert.match(await includedImage(html), /<circle/);
   const baseline=await count();
   await pause(1500);assert.equal(await count(),baseline,'cell-created watched file must not rerun Python in a loop');
   console.log('Checking prose reload without Python execution');
@@ -143,8 +156,12 @@ try {
   html=await until('prose edit reload',async()=>{const h=await page();return h.includes('Updated prose.')&&h});
   assert.equal(await count(),baseline,'prose-only edit reran Python');await checkMarkers(html);
   console.log('Checking included-file reload');
-  await writeFile(join(content,'_parts/fragment.md'),'Included source sentence.\n\nUpdated include body.\n\n![Included image](./icon.svg)\n\n[Nested destination](../guide/topic.md)\n');
-  await until('include edit reload',async()=>(await page()).includes('Updated include body.'));
+  await writeFile(join(content,'_parts/second.svg'),'<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8"/></svg>');
+  await writeFile(join(content,'_parts/fragment.md'),'Included source sentence.\n\nUpdated include body.\n\n![Included image](./second.svg)\n\n[Nested destination](../guide/topic.md)\n');
+  await until('include and asset reload',async()=>{
+    const html = await page();
+    return html.includes('Updated include body.') && (await includedImage(html)).includes('<rect');
+  });
   assert.equal(await count(),baseline,'include prose edit reran Python');
   console.log('Checking Python dependency invalidation');
   await writeFile(join(root,'helper.py'),'VALUE = 43\n');

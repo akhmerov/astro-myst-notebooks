@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -100,4 +100,21 @@ test('concurrent document transforms share the configured kernel limit and faile
   const retry = createDocumentExecution({ root, runDocument: async items => { if (++attempts === 1) throw new Error('transient kernel failure'); return fake(items); } });
   await assert.rejects(transform(retry, pageTree('retry cell'), paths[0]), /transient kernel failure/);
   await transform(retry, pageTree('retry cell'), paths[0]); assert.equal(attempts, 2);
+}));
+
+test('editing a data file in a declared directory inside the project invalidates the execution cache', () => fixture(async root => {
+  const page = join(root, 'page.md');
+  const input = join(root, 'data', 'measurements.csv');
+  await mkdir(join(root, 'data'));
+  await writeFile(page, 'A notebook reading measurements.');
+  await writeFile(input, 'value\n42\n');
+  const plugin = createDocumentExecution({ root, cwd: root, dependencies: ['data'] });
+  const code = 'from pathlib import Path\nprint(Path("data/measurements.csv").read_text().splitlines()[1])';
+  const first = pageTree(code);
+  await transform(plugin, first, page);
+  assert.equal(output(first).text, '42\n');
+  await writeFile(input, 'value\n43\n');
+  const second = pageTree(code);
+  await transform(plugin, second, page);
+  assert.equal(output(second).text, '43\n');
 }));

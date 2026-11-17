@@ -105,7 +105,46 @@ test('adjacent CSV tables with repeated headers bind to source order and reject 
     }
   }
   nodes(nodes(tampered,'table')[0],'text').find(node=>node.value.includes('first')).value='second "quote"';
-  await assert.rejects(finalizeOrigins(tampered,{root}),/Source provenance range does not contain/);
+  await assert.rejects(finalizeOrigins(tampered,{root}),/CSV source provenance does not match/);
+  const borrowedLiteral=structuredClone(page.mdast);
+  nodes(nodes(borrowedLiteral,'table')[0],'text').find(node=>node.value==='item').value='Value';
+  await assert.rejects(finalizeOrigins(borrowedLiteral,{root}),/CSV source provenance does not match/);
+}));
+
+test('CSV literal text cannot borrow an exact formatted span from a later table',()=>fixture(async root=>{
+  const first='```{csv-table}\n\nbold,first\n```\n';
+  const second='```{csv-table}\n\n**bold**,second\n```\n';
+  const source='---\ntitle: CSV duplicate lexical text\n---\n\n'+first+'\n'+second;
+  await writeFile(join(root,'index.md'),source);
+  const page=await build(root); await finalizeOrigins(page.mdast,{root});
+  const tables=nodes(page.mdast,'table');
+  const borrowed=nodes(tables[0],'text').find(node=>node.value==='bold');
+  assert.equal(borrowed.data.origin.kind,'range');
+  assert.equal(borrowed.data.origin.transformation,'csv');
+  assert.equal(source.slice(borrowed.data.origin.start,borrowed.data.origin.end),first);
+  await assertExact(page.mdast,root);
+  const stable=JSON.stringify(page.mdast);
+  await finalizeOrigins(page.mdast,{root}); assert.equal(JSON.stringify(page.mdast),stable);
+}));
+
+test('partial CSV source order widens a borrowed exact span to its honest enclosing range',()=>fixture(async root=>{
+  const first='```{csv-table}\n\nbold,first\n```\n';
+  const second='```{csv-table}\n\n**bold**,second\n```\n';
+  const source='---\ntitle: Partial CSV\n---\n\n'+first+'\n'+second;
+  await writeFile(join(root,'index.md'),source);
+  const page=await build(root);
+  const tables=nodes(page.mdast,'table');
+  // A project expansion may expose only a subset of a source file's tables.
+  // Without a complete ordering, neither a matching field nor old precision
+  // metadata identifies which authored directive produced this table.
+  visit(page.mdast,node=>{if(node.children)node.children=node.children.filter(child=>child!==tables[1]);});
+  await finalizeOrigins(page.mdast,{root});
+  const borrowed=nodes(tables[0],'text').find(node=>node.value==='bold');
+  assert.equal(borrowed.data.origin.kind,'range');
+  assert.equal(borrowed.data.origin.transformation,'csv');
+  assert.equal(borrowed.data.origin.start,0);assert.equal(borrowed.data.origin.end,source.length);
+  const stable=JSON.stringify(page.mdast);
+  await finalizeOrigins(page.mdast,{root}); assert.equal(JSON.stringify(page.mdast),stable);
 }));
 
 test('contiguous include line filters map selected source and reject noncontiguous ranges',()=>fixture(async root=>{

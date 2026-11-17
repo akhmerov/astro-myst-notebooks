@@ -40,6 +40,7 @@ export function registerEngine(config, options = {}) {
   const engine = previous ?? { root, revision: 0 };
   engine.options = options;
   engine.manifest = undefined;
+  engine.publicAssets = new Map();
   engine.base = config.base;
   engine.trailingSlash = config.trailingSlash;
   engine.source = resolve(pathOf(options.myst?.source ?? new URL('content/docs/', config.srcDir)));
@@ -61,6 +62,7 @@ export function getEngine(root) {
 export async function buildEngine(engine, { force = false } = {}) {
   if (engine.building) return engine.building;
   if (engine.manifest && !force) return engine;
+  engine.manifest = undefined;
   engine.building = (async () => {
     const options = engine.options;
     const buildTimeout = options.myst?.buildTimeout ?? 180000;
@@ -130,8 +132,8 @@ export async function buildEngine(engine, { force = false } = {}) {
         else code === 0 ? resolveBuild() : reject(new Error(`MyST document build failed (${code}):\n${output}`));
       });
     });
-    engine.manifest = JSON.parse(await readFile(join(engine.site, 'config.json'), 'utf8'));
-    if (engine.manifest.version !== 3) throw new Error(`Unsupported MyST manifest version ${engine.manifest.version}`);
+    const manifest = JSON.parse(await readFile(join(engine.site, 'config.json'), 'utf8'));
+    if (manifest.version !== 3) throw new Error(`Unsupported MyST manifest version ${manifest.version}`);
     engine.routes = new Map();
     const contentRoutes = new Map();
     const prefix = String(engine.base ?? '/').replace(/\/$/, '');
@@ -168,6 +170,16 @@ export async function buildEngine(engine, { force = false } = {}) {
       const { augmentInventory } = await import('./autodoc/inventory.mjs');
       await augmentInventory({ site: engine.site, base: engine.base });
     }
+    const publicRoot = join(engine.site, 'public');
+    const publicPaths = JSON.parse(await readFile(join(engine.site, 'public.json'), 'utf8'));
+    const publicAssets = new Map();
+    for (const path of publicPaths) {
+      const file = resolve(publicRoot, path.replace(/^\//, ''));
+      if (!file.startsWith(publicRoot + sep)) throw new Error(`Invalid MyST public asset path: ${path}`);
+      publicAssets.set(new URL(path, 'http://localhost').pathname, file);
+    }
+    engine.publicAssets = publicAssets;
+    engine.manifest = manifest;
     engine.revision++;
     return engine;
   })();
@@ -203,14 +215,25 @@ export async function publishEngine(engine, destination) {
   await cp(join(engine.site, 'content'), join(out, '_myst/content'), { recursive: true });
   await cp(join(engine.site, 'config.json'), join(out, '_myst/config.json'));
   if (await exists(join(engine.site, 'public'))) await cp(join(engine.site, 'public'), out, { recursive: true });
-  for (const file of ['objects.inv', 'myst.xref.json', 'myst.search.json']) {
-    const source = join(engine.site, file);
-    if (await exists(source)) {
-      if (file === 'myst.xref.json') {
-        const xrefs = JSON.parse(await readFile(source, 'utf8'));
-        for (const ref of xrefs.references ?? []) if (ref.data?.startsWith('/content/')) ref.data = ref.data.replace('/content/', '/_myst/content/');
-        await writeFile(join(out, file), JSON.stringify(xrefs));
-      } else await cp(source, join(out, file));
+  await cp(join(engine.site, 'objects.inv'), join(out, 'objects.inv'));
+  const prefix = String(engine.base ?? '/').replace(/\/$/, '');
+  const xrefs = JSON.parse(await readFile(join(engine.site, 'myst.xref.json'), 'utf8'));
+  for (const ref of xrefs.references ?? []) {
+    if (ref.data?.startsWith('/content/')) ref.data = ref.data.replace('/content/', '/_myst/content/');
+    // A MyST consumer appends these paths to the project URL, which already
+    // includes the deployment prefix.
+    if (prefix && ref.url?.startsWith(`${prefix}/`)) ref.url = ref.url.slice(prefix.length);
+  }
+  await writeFile(join(out, 'myst.xref.json'), JSON.stringify(xrefs));
+
+  const searchPath = join(engine.site, 'myst.search.json');
+  if (await exists(searchPath)) {
+    const search = JSON.parse(await readFile(searchPath, 'utf8'));
+    for (const record of search.records) {
+      const [path, fragment] = record.url.split('#', 2);
+      const url = engine.routes.get(path) ?? engine.routes.get(path.slice(1));
+      if (url) record.url = fragment ? `${url}#${fragment}` : url;
     }
+    await writeFile(join(out, 'myst.search.json'), JSON.stringify(search));
   }
 }

@@ -141,8 +141,12 @@ export function createDocumentExecution({ root = process.cwd(), python = 'python
       });
       if (!items.length) return;
       const executionCwd = page.kernelspec || page.jupyter?.kernelspec ? dirname(file.path) : workdir ?? dirname(file.path);
-      const roots = [{ path: root }, ...(executionCwd === root ? [] : [{ path: executionCwd }]),
-        ...dependencies.map(path => ({ path: resolve(root, asPath(path)), explicit: true }))];
+      // Scan declared inputs first. A directory already visited by implicit
+      // Python-only discovery would otherwise hide its non-Python files.
+      const roots = [
+        ...dependencies.map(path => ({ path: resolve(root, asPath(path)), explicit: true })),
+        { path: root }, ...(executionCwd === root ? [] : [{ path: executionCwd }]),
+      ];
       const inputs = await dependencyDigest(roots);
       const key = digest(JSON.stringify({ version: 1, adapterVersion, file: file.path,
         items: items.map(({ origin, ...item }) => item), python, cwd: executionCwd, timeout, deadline, pixi,

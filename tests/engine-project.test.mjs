@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { visit } from 'unist-util-visit';
 import { fromHtml } from 'hast-util-from-html';
 import { setTimeout as pause } from 'node:timers/promises';
-import { registerEngine, buildEngine, enginePages } from '../dist/engine/project.mjs';
+import { registerEngine, buildEngine, enginePages, publishEngine } from '../dist/engine/project.mjs';
 import { renderPage } from '../dist/engine/render.mjs';
 
 async function fixture(callback) {
@@ -51,6 +51,15 @@ test('the public compiler resolves includes, glossary, CSV, custom routes and as
   assert.ok(image.properties.src.startsWith('/manual/'));
   const asset = image.properties.src.slice('/manual/'.length);
   assert.equal(await readFile(join(engine.site, 'public', asset), 'utf8'), await readFile(join(root, '_parts/image.svg'), 'utf8'));
+  const output = join(root, 'dist');
+  await publishEngine(engine, output);
+  const xrefs = JSON.parse(await readFile(join(output, 'myst.xref.json'), 'utf8'));
+  const target = xrefs.references.find(ref => ref.identifier === 'result');
+  assert.equal(new URL('https://example.org/manual' + target.url).pathname, '/manual/guide/custom/');
+  assert.equal(JSON.parse(await readFile(join(output, target.data), 'utf8')).frontmatter.title, 'Destination');
+  const search = JSON.parse(await readFile(join(output, 'myst.search.json'), 'utf8'));
+  assert.ok(search.records.some(record => record.url === '/manual/guide/custom/#result'));
+  assert.ok(search.records.every(record => record.url.startsWith('/manual/')));
 }));
 
 test('unresolved semantics and cyclic includes fail the compiler, and invalid deadlines fail before spawning', () => fixture(async (root, engine) => {

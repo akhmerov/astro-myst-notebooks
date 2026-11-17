@@ -230,6 +230,9 @@ function csvDirectives(source) {
 }
 
 function csvTableBindings(table, directives, narrow) {
+  // Text origins may already have borrowed an equal lexical span from another
+  // table. Only the table's enclosing authored range can bound record matching.
+  const bounds = table.data?.origin;
   const rows = (table.children ?? []).map(row => (row.children ?? []).map(cell => {
     const values = [];
     visit(cell, ['text', 'inlineCode'], node => { values.push(node); });
@@ -239,9 +242,7 @@ function csvTableBindings(table, directives, narrow) {
     rows.every((row, r) => row.length === directive.rows[r].length && row.every((cell, c) =>
       cell.length === directive.rows[r][c].length && cell.every((node, i) => {
         const value = directive.rows[r][c][i], origin = node.data?.origin;
-        const inRange = origin && (origin.kind === 'exact'
-          ? origin.start >= directive.start && origin.end <= directive.end
-          : directive.start >= origin.start && directive.end <= origin.end);
+        const inRange = origin && bounds && directive.start >= bounds.start && directive.end <= bounds.end;
         return inRange &&
           node.type === value.type && authoredTextEquivalent(node.value, value.value);
       }))));
@@ -249,10 +250,11 @@ function csvTableBindings(table, directives, narrow) {
   if (!matches.length) return bindings;
   rows.forEach((row, r) => row.forEach((cell, c) => cell.forEach((node, i) => {
     const values = new Set(matches.map(directive => directive.rows[r][c][i].value));
-    if (values.size === 1) bindings.set(node, { value: [...values][0],
+    if (values.size === 1) bindings.set(node, { value: [...values][0], precise: narrow && matches.length === 1,
       // Only source order plus a complete table comparison identifies a
       // particular directive. Content equality alone cannot locate duplicates.
-      ...(narrow && matches.length === 1 ? { start: matches[0].start, end: matches[0].end } : {}) });
+      start: narrow && matches.length === 1 ? matches[0].start : bounds.start,
+      end: narrow && matches.length === 1 ? matches[0].end : bounds.end });
   })));
   return bindings;
 }
@@ -283,7 +285,11 @@ export async function finalizeOrigins(tree, { root = process.cwd() } = {}) {
     const ordered = lexical.tables.length === fileTables.length;
     fileTables.forEach((table, index) => {
       const candidates = ordered ? (lexical.tables[index] ? [lexical.tables[index]] : []) : lexical.directives;
-      for (const [node, binding] of csvTableBindings(table, candidates, ordered)) csvBindings.set(node, binding);
+      const bindings = csvTableBindings(table, candidates, ordered);
+      if (ordered && candidates.length && !bindings.size) {
+        throw new Error(`CSV source provenance does not match its authored table records: ${relative(root, path)}`);
+      }
+      for (const [node, binding] of bindings) csvBindings.set(node, binding);
     });
   }
   const nodes = [];
@@ -297,12 +303,15 @@ export async function finalizeOrigins(tree, { root = process.cwd() } = {}) {
       throw new Error(`Invalid source provenance range: ${origin.file}`);
     }
     if (origin.digest !== createHash('sha256').update(source).digest('hex')) throw new Error(`Source changed after the MyST document build: ${origin.file}`);
-    if (tableText.has(node) && origin.kind === 'range') {
+    if (tableText.has(node)) {
       const csv = csvBindings.get(node);
       if (csv) {
         node.value = csv.value;
-        Object.assign(origin, { transformation: 'csv', ...(csv.start === undefined ? {} : {
-          start: csv.start, end: csv.end, position: { start: point(source, csv.start), end: point(source, csv.end) } }) });
+        const ownedExact = csv.precise && origin.kind === 'exact' && origin.start >= csv.start && origin.end <= csv.end;
+        if (ownedExact) {
+          if (source.slice(origin.start, origin.end) !== node.value) throw new Error(`Exact CSV source provenance does not match its authored field: ${origin.file}`);
+        } else Object.assign(origin, { kind: 'range', transformation: 'csv', start: csv.start, end: csv.end,
+          position: { start: point(source, csv.start), end: point(source, csv.end) } });
         continue;
       }
       if (origin.transformation === 'csv') throw new Error(`CSV source provenance does not match a decoded authored field: ${origin.file}`);
