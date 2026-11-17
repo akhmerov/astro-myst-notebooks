@@ -1,22 +1,27 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import { unified } from 'unified';
-import { remarkMyst, mystRehype } from '../dist/myst.mjs';
-import rehypeKatex from 'rehype-katex';
-import remarkRehype from 'remark-rehype';
 import { toHtml } from 'hast-util-to-html';
-import { executePage, remarkJupyter } from '../dist/jupyter.mjs';
-import { renderOutput, rehypeJupyter } from '../dist/mime.mjs';
+import { fromHtml } from 'hast-util-from-html';
+import { visit } from 'unist-util-visit';
+import { executePage } from '../dist/jupyter.mjs';
+import { renderOutput } from '../dist/mime.mjs';
 import { ansiToHast } from '../dist/ansi.mjs';
+import { renderEngine as render } from './helpers/engine.mjs';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import { setTimeout as delay } from 'node:timers/promises';
 
 const cwd = fileURLToPath(new URL('../', import.meta.url));
 
-async function render(source, frontmatter = {}, options = {}) {
-  const processor = unified().use(remarkMyst).use(remarkJupyter, { cwd, ...options }).use(remarkRehype, mystRehype).use(rehypeKatex).use(rehypeJupyter);
-  const file = { value: source, data: { astro: { frontmatter } } };
-  return toHtml(await processor.run(processor.parse(source), file));
-}
+const text = node => node.type === 'text' ? node.value : (node.children ?? []).map(text).join('');
+const elements = html => {
+  const result = [];
+  visit(fromHtml(html, { fragment: true }), 'element', node => { result.push(node); });
+  return result;
+};
 
 test('real Jupyter state, MIME bundles, display updates, clear_output, and kernel isolation', async () => {
   const notebook = await executePage([
@@ -37,6 +42,60 @@ test('real Jupyter state, MIME bundles, display updates, clear_output, and kerne
 test('execution errors and per-cell timeouts reject', async () => {
   await assert.rejects(executePage(['raise ValueError("intentional-test-error")'], { cwd }), /intentional-test-error/);
   await assert.rejects(executePage(['import time; time.sleep(10)'], { cwd, timeout: 1 }), /CellTimeoutError/);
+});
+
+async function waitForKernel(path) {
+  for (let attempt = 0; attempt < 150; attempt++) {
+    try { return Number(await readFile(path, 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    await delay(50);
+  }
+  throw new Error('Test kernel did not record its PID');
+}
+
+async function kernelGone(pid) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    try {
+      process.kill(pid, 0);
+      // A killed orphan can remain a zombie until the container's init reaps
+      // it. It is no longer executing and owns no memory or kernel resources.
+      if (process.platform === 'linux' && /\) Z /.test(await readFile(`/proc/${pid}/stat`, 'utf8'))) return;
+    } catch (error) { if (['ESRCH', 'ENOENT'].includes(error.code)) return; throw error; }
+    await delay(50);
+  }
+  assert.fail(`Kernel ${pid} survived execution teardown`);
+}
+
+test('the outer adapter deadline terminates a kernel stuck in a native call', { timeout: 20000 }, async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'kernel-deadline-'));
+  const path = join(directory, 'kernel.pid');
+  try {
+    const code = `import os, ctypes\nfrom pathlib import Path\nPath(${JSON.stringify(path)}).write_text(str(os.getpid()))\nctypes.CDLL(None).sleep(60)`;
+    const result = executePage([code], { cwd: directory, timeout: 60, deadline: 5 });
+    const rejection = assert.rejects(result, /Jupyter process deadline exceeded/);
+    const pid = await waitForKernel(path);
+    await rejection;
+    await kernelGone(pid);
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('terminating the adapter cleans up its kernel independently of the nbclient event loop', { timeout: 20000 }, async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'kernel-termination-'));
+  const path = join(directory, 'kernel.pid');
+  const child = spawn('python', [fileURLToPath(new URL('../dist/execute.py', import.meta.url))], {
+    cwd: directory, stdio: ['pipe', 'ignore', 'pipe'],
+  });
+  let stderr = '';
+  child.stderr.on('data', chunk => { stderr += chunk; });
+  const exit = new Promise((resolve, reject) => { child.on('error', reject); child.on('close', (code, signal) => resolve({ code, signal })); });
+  child.stdin.end(JSON.stringify({ protocol: 1, operation: 'execute', cwd: directory, timeout: 60, deadline: 12,
+    cells: [{ id: 'native-call', source: `import os, ctypes\nfrom pathlib import Path\nPath(${JSON.stringify(path)}).write_text(str(os.getpid()))\nctypes.CDLL(None).sleep(60)` }] }));
+  try {
+    const pid = await waitForKernel(path);
+    child.kill('SIGTERM');
+    const result = await exit;
+    assert.equal(result.code, 143, stderr);
+    await kernelGone(pid);
+  } finally { child.kill('SIGKILL'); await rm(directory, { recursive: true, force: true }); }
 });
 
 test('raises-exception publishes the traceback and later cells keep running', async () => {
@@ -74,10 +133,13 @@ test('inline {eval} expressions see the kernel state at their position', async (
     '```{code-cell} python\nn = 2\n```',
     'After: {eval}`n`.',
   ].join('\n\n'));
-  assert.match(result, /Before: <\/span><span class="jupyter-output jupyter-inline" data-mime="text\/plain" data-source-generated="true">36<\/span>/);
-  assert.match(result, /data-mime="text\/plain" data-source-generated="true">'008'<\/span>/);
-  assert.match(result, /data-mime="text\/html" data-source-generated="true"><b>rich<\/b><\/span>/);
-  assert.match(result, /After: <\/span><span[^>]*>2<\/span>/);
+  const nodes = elements(result);
+  const inline = nodes.filter(node => node.properties.className?.includes('jupyter-inline'));
+  assert.deepEqual(inline.map(text), ['36', "'008'", 'rich', '2']);
+  assert.ok(inline.every(node => node.tagName === 'span' && node.properties.dataSourceGenerated === 'true'));
+  assert.ok(inline[2].children.some(node => node.tagName === 'b' && text(node) === 'rich'));
+  assert.ok(nodes.some(node => node.tagName === 'p' && text(node) === "Before: 36 and '008' and rich."));
+  assert.ok(nodes.some(node => node.tagName === 'p' && text(node) === 'After: 2.'));
   assert.doesNotMatch(result, /<pre>36/);
   await assert.rejects(render('```{code-cell} python\nx = 1\n```\n\n{eval}`undefined_name`'), /NameError/);
   await assert.rejects(render('{eval}`1`', { execute: { skip: true } }), /execute\.skip/);
@@ -153,7 +215,6 @@ test('MyST parses directives, tags, math, links, and rejects unknown syntax', as
     '```{code-cell} ipython3\nx + 2\n```',
     ':::{admonition} A collapsible explanation\n:class: dropdown tip\n\nThe answer is $x^2$.\n:::',
     '\\begin{equation}\nx = 2\n\\end{equation}',
-    '{autolink}`~pymablock.series.BlockSeries`',
   ].join('\n\n');
   const result = await render(source);
   assert.match(result, /<pre>42<\/pre>/);
@@ -161,7 +222,6 @@ test('MyST parses directives, tags, math, links, and rejects unknown syntax', as
   assert.match(result, /<details[^>]*><summary[^>]*><span[^>]*>A collapsible explanation/);
   assert.match(result, /class="katex-display"/);
   assert.doesNotMatch(result, /katex-error|unhandled|\{code-cell\}/);
-  assert.match(result, /href="xref:auto#pymablock.series.BlockSeries"/);
-  await assert.rejects(render(':::{not-a-real-directive}\nbody\n:::'), /unknown directive/);
-  await assert.rejects(render('{not-a-real-role}`value`'), /unknown role/);
+  await assert.rejects(render(':::{not-a-real-directive}\nbody\n:::'), /unknown directive|Unsupported resolved MyST node: mystDirective/i);
+  await assert.rejects(render('{not-a-real-role}`value`'), /unknown role|Unsupported resolved MyST node: mystRole/i);
 });

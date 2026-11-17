@@ -11,7 +11,7 @@ in `myst.xref.json`.
 
 ## Install and configure
 
-You need Node 22.12 or newer, MyST 1.11, and a Python environment with
+You need Node 22.12 or newer, MyST 1.13, and a Python environment with
 `griffe>=1,<3`. For reStructuredText docstrings, also install `rst-to-myst>=0.4,<0.5`.
 The plugin uses that environment's `python`; it does not install an interpreter.
 
@@ -24,13 +24,13 @@ pixi run npm pack ./packages/myst-autodoc
 Install that archive and MyST in your documentation project:
 
 ```sh
-npm install /path/to/astro-myst-notebooks-autodoc-0.1.0.tgz mystmd@1.11.0
+npm install /path/to/myst-python-autodoc-0.1.0.tgz mystmd@1.13.0
 ```
 
 Create `autodoc.mjs` beside `myst.yml`:
 
 ```js
-import { createAutodoc } from '@astro-myst-notebooks/autodoc';
+import { createAutodoc } from 'myst-python-autodoc';
 
 export default createAutodoc({
   modules: ['mypackage'],
@@ -44,6 +44,9 @@ Paths are relative to the directory where you run MyST. `python` can specify
 another Python executable. `parser` selects the docstring section convention:
 `numpy`, `google`, or `sphinx`. `markup` selects the prose syntax: `myst` or `rst`.
 These are separate choices; NumPy-style docstrings can contain either markup.
+`modules` selects modules or individual dotted object paths. Explicit module
+`__all__` declarations limit public member traversal; separately listed modules
+and objects remain available even when their parent does not export them.
 
 Register the plugin:
 
@@ -75,14 +78,16 @@ Write API pages yourself and place objects where you want them:
 See {py:func}`mypackage.solve` and {py:class}`mypackage.Result`.
 ````
 
-`members` accepts comma-separated direct public members, or `*` for all direct
-public members. It does not recurse. Headings default to level 2. `summary-only`
+`members` accepts comma-separated public members, or `*` for all public
+members, including inherited members. It does not recurse. Headings default to level 2. `summary-only`
 omits the signature and cannot be combined with `members`. Document each object
 once; use references for additional appearances.
 
 Python roles include `py:func`, `py:class`, `py:meth`, `py:attr`, `py:mod`,
 `py:data`, and `py:obj`, with unprefixed aliases. In docstrings, short names resolve
-in the containing Python scope. Explicit titles and `~` shortening are supported.
+in the containing Python scope. The `{autolink}` role accepts any Python kind;
+unqualified authored names must identify one canonical object unambiguously.
+Explicit titles and `~` shortening are supported.
 RST equivalents such as `:class:` are converted when `markup: 'rst'` is selected.
 
 ## Build and publish
@@ -93,7 +98,7 @@ npx myst-autodoc build -- --html --strict
 
 This runs MyST, merges typed Python entries into `_build/site/objects.inv`, and
 updates `_build/html/objects.inv`. Publish the entire `_build/html` directory.
-The wrapper is needed because MyST 1.11 exports targets as generic labels.
+The wrapper adds typed Python targets to MyST's generic label inventory.
 It reads resolved page URLs and anchors; it does not derive routes from Python names.
 
 For content JSON without HTML, run `npx myst-autodoc build`. To augment an existing
@@ -111,9 +116,9 @@ hosting prefix. Restart the build after Python edits; watch mode is unsupported.
 Other Sphinx projects can use normal Intersphinx configuration and typed Python
 references without installing this plugin. Other MyST projects can use their
 `project.references` configuration and links such as
-`[Result](xref:yourproject#mypackage.result)`. MyST labels are case insensitive;
-the Sphinx inventory preserves Python's case-sensitive names. Conflicting Python
-names that differ only in case are rejected.
+`[Result](xref:yourproject#mypackage.Result)`. Python target names preserve case
+in both MyST and Sphinx inventories. Spell class and function references exactly;
+identifiers differing only in case remain distinct.
 
 To link from Python docstrings to external documentation, map Python prefixes to
 documentation URLs (or explicit inventory URLs):
@@ -125,8 +130,7 @@ externalReferences: { numpy: 'https://numpy.org/doc/stable/' }
 
 An explicit `py:class` reference to `numpy.ndarray` then uses that inventory.
 Both local and external Python references are checked for the expected kind.
-The plugin preserves case in Sphinx's `$` anchor shorthand, avoiding a bug in
-MyST 1.11's bundled inventory reader. Inventories are fetched once per build;
+The plugin preserves case in Sphinx's `$` anchor shorthand. Inventories are fetched once per build;
 missing or ambiguous Python references fail explicitly. Ordinary MyST `xref:`
 links continue to use MyST's own `project.references` configuration and resolver.
 
@@ -134,11 +138,21 @@ links continue to use MyST's own `project.references` configuration and resolver
 
 The initial implementation supports modules, classes, functions, methods,
 attributes, properties, overload signatures, structured docstring sections,
-and public aliases. It does not generate page trees, merge constructor prose,
-expand inherited members, automatically link signature annotations, or inspect
-extension modules. Relative links in docstrings resolve from the authored API
+and public aliases. Class documentation merges constructor prose and includes
+inherited members. The standalone plugin uses authored API pages; the Astro
+integration can generate a page tree from this same extraction model. It does
+not automatically link signature annotations or inspect extension modules.
+Declared base classes appear below the signature, with links for known local
+classes and code text for unavailable external bases. Runtime-created attributes
+and members of unavailable external bases are outside static extraction.
+Relative links in docstrings resolve from the authored API
 page. Generated prose carries Python file/line metadata, not Markdown source offsets.
-Unknown constructs and extraction warnings fail explicitly.
+Unknown constructs and malformed documentation fail explicitly. Missing optional
+NumPy parameter type labels are reported as warnings while retaining the prose.
+Set `docstringWarnings: 'warn'` to retain prose with other Griffe diagnostics;
+the default is `'error'`. Unsupported markup and unresolved references still fail.
+For RST document roles, map each document name to its destination with
+`documents: { guide: '/guide/' }`; missing mappings fail explicitly.
 
 From this repository:
 
@@ -151,4 +165,7 @@ Tests consume a packed plugin, build API content, and check signatures, aliases,
 rebuilds, errors, and links in both directions. A separate temporary Sphinx 9
 project reads the published inventory through HTTP; its dependencies live only
 in the `interop` Pixi environment. A plain MyST consumer has no autodoc plugin.
-The theme example in `experiments/myst-theme/` exercises the same plugin.
+The root package's archive-consumer check exercises the integrated plugin with
+generated API pages, inherited members, constructor documentation, and browser
+execution. The root archive carries the plugin runtime directly; an Astro
+consumer does not install this workspace archive separately.

@@ -1,12 +1,12 @@
 ---
 title: Development
-description: Build this documentation site, run its checks, and validate the distribution in consumers.
+description: Build the Astro-led MyST integration, validate its archives, and check downstream consumers.
 ---
 
-This repository's documentation is an Astro/Starlight consumer of its own
-compiled package. `docs/astro.config.mjs` imports `astro-myst-notebooks/starlight`, and the
-content collection imports `astro-myst-notebooks/starlight/content`. There is no copied
-renderer or separate documentation execution script.
+This repository's documentation imports the compiled package through its public
+Starlight plugin and content collection. Astro starts the build. The integration
+runs the pinned MyST CLI, adds the nbclient and provenance plugins, then renders
+MyST's resolved documents. It does not access MyST's engine Session API.
 
 ## Build and preview
 
@@ -17,9 +17,10 @@ pixi run docs
 pixi run docs-preview
 ```
 
-The build compiles the package, renders this site's MyST files, and executes the
-[walkthrough](walkthrough.md) with real Jupyter. Static files go to `docs/dist/`;
-package output stays in the root `dist/`. Preview prints its local URL.
+The site is written to `docs/dist/`; the compiled package stays in the root
+`dist/`. `docs/myst.yml` is the authored project configuration. Ignore
+`docs/.astro-myst.generated.yml`, `docs/_build/`, and `docs/.astro/`: they contain
+generated MyST input, resolved documents, and caches.
 
 For authoring:
 
@@ -27,16 +28,19 @@ For authoring:
 pixi run docs-dev 51300
 ```
 
-The port is optional and defaults to 51300. Additional Astro CLI options go
-after `--`, for example `pixi run docs-dev 51300 -- --host 0.0.0.0`.
-The dev task compiles the package once before
-starting Astro. Restart it after changing package implementation or Python
-dependencies. Source prose edits and page additions/removals are handled by Astro's watcher.
+The port defaults to 51300. Additional Astro flags go after `--`, for example
+`pixi run docs-dev 51300 -- --host 0.0.0.0`. Astro watches pages, included
+Markdown, the MyST configuration/table of contents, and Python source. The
+integration rebuilds document data before updating the content collection.
+Unchanged executable inputs reuse successful outputs, so a prose edit does not
+need another kernel. Restart after editing the integration implementation or
+changing installed Python packages.
 
-This site's native examples use standard-library Python and IPython. The Pixi
-environment also contains the Xeus build tools. `docs/environment.yml` declares
-the browser environment, whose completed artifacts are cached between builds.
-
+Build-time examples use the selected Pixi Python. Browser Python is declared
+separately in `docs/environment.yml`; its prepared Xeus environment is cached
+between builds. `api.python` and `interactive.python` can select other existing
+Pixi interpreters for static API extraction and browser-build tools. Neither
+changes reader Python or installs another Python distribution.
 
 ## Validation
 
@@ -46,30 +50,37 @@ pixi run check
 pixi run docs-test
 ```
 
-Package tests exercise compiled output and real native kernels. The docs test
-builds the site and checks rendered results, document links, included-source
-origins, and the emitted browser assets. It also catches missing pages in the
-site's own navigation.
+Tests exercise compiled output. Execution checks use real kernels and cover
+cell errors, timeouts, adapter termination, and cached-output invalidation.
+Provenance checks compare source slices with mapped text; a successful build
+alone does not establish accurate source locations. Rendering checks cover
+references, citations, grouped content, includes, and generated outputs.
 
-To check a deployment prefix:
+`docs-test` builds this site, checks its TypeScript, and verifies output, links,
+source origins, and browser assets. To check deployment below a prefix:
 
 ```sh
 DOCS_BASE=/manual/ pixi run docs-test
 ```
 
-Browser checks use Playwright against the built site:
+Browser checks require Playwright's browsers:
 
 ```sh
 pixi run npx playwright install chromium firefox
 pixi run docs-browser
 ```
 
-Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` or `PLAYWRIGHT_FIREFOX_EXECUTABLE` to use
-existing browser binaries, or `DOCS_PORT` to choose the local test server port.
-The npm browser-test setup installs Firefox and its system dependencies in CI.
-The browser suite checks the
-rendered page, source selections, and real Python activation, execution, and
-reset. Initial browser-runtime downloads require network access.
+Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE` or `PLAYWRIGHT_FIREFOX_EXECUTABLE` to select
+existing browser binaries. `DOCS_PORT` chooses the preview port. The npm browser
+setup also installs Firefox and its system dependencies in CI. Browser tests
+exercise activation, real Python execution, preserved presentation settings,
+plots, source selection, and recovery from an infinite loop. Initial browser
+package downloads require network access.
+
+A failed main run must be investigated at its failed step. Distinguish an
+assertion failure from a cancelled or timed-out runner, and retain diagnostic
+logs before changing code. Do not increase a job limit without identifying what
+used it.
 
 ## Build the distribution
 
@@ -77,24 +88,27 @@ reset. Initial browser-runtime downloads require network access.
 pixi run pack
 ```
 
-This runs `npm run package`: it builds the package, asks npm which files belong in
-the archive, and copies them into a temporary staging directory. Dependency
-manifest patches and the production shrinkwrap are written only in that
-directory. A completed archive replaces the previous one; failures leave the
-previous archive and installed dependencies intact.
+This runs `npm run package`, compiles the package, and assembles a `.tgz` archive
+in a temporary staging directory. Dependency manifest patches and a production
+shrinkwrap are written in staging. A completed archive replaces the previous
+one; failures leave the prior archive and installed dependencies intact.
 
-Use `pixi run pack` or `npm run package`, rather than bare `npm pack`. The latter
-stops with guidance so it cannot accidentally distribute unpatched dependency
-manifests. When publishing, pass the prepared `.tgz` archive to `npm publish`.
+Use this command instead of bare `npm pack`, which stops with guidance. The
+root archive includes compiled modules and declarations, the Python adapter,
+execution contracts, styles, browser files, and a runtime copy of the canonical
+autodoc workspace. It contains no dependency on a local workspace link.
+Documentation source and site output are excluded.
 
-The npm archive includes the compiled modules, TypeScript declarations, Python
-adapter, contract JSON, styles, and browser files. Documentation source and
-site output are development assets and are excluded from the archive.
+This branch targets unpublished `0.5.0-alpha.0`. An archive from the previous
+`0.4.x` pipeline does not test the new API. Before sharing a build, validate the
+actual archive in fresh consumers and retain its checksum. Publication is a
+separate action; building or testing an archive does not publish a release.
 
-Pymablock remains the downstream consumer for broader Python API and Xeus
-coverage. Before changing browser or Astro integration boundaries, install the
-packed archive in that consumer and run its build-contract and browser checks.
-The local site does not exercise every optional provider or Griffe adapter.
+Pymablock is the downstream gate for scientific examples, API routes, and Xeus.
+Install the packed archive there and check build contracts, links, inventories,
+source-map behavior, development reload, and reader execution. Record the
+actual commands and limitations. Passing this repository's tests does not prove
+full Pymablock compatibility.
 
 ## Test an unpublished release
 
@@ -104,52 +118,96 @@ pixi run npm run release:check -- --browser
 pixi run npm run release:check -- --api --browser
 ```
 
-The release check runs the CLI from the packed archive in an empty temporary
-consumer, installs its dependencies, and builds at `/` and `/manual/`. It also
-checks notebook input, tabs and cards, inline Python results, and both default
-and explicit dev-port arguments. With `--api`, it also checks Python API
-documentation. `--browser` also starts the built site under `/manual/`, executes
-Python in Chromium, and checks recovery from an infinite loop. Install Chromium
-as described above or set `PLAYWRIGHT_CHROMIUM_EXECUTABLE`. The temporary consumer
-is retained for inspection. Run this check before sharing an archive.
+The check runs the initializer from the archive in a fresh temporary consumer.
+The consumer imports only installed package exports, builds at `/` and
+`/manual/`, and checks executable cells, notebook sources, inline results,
+tabs/grid, citations, source markers, public inventories, and resolved page
+JSON. With `--api`, it also checks generated API pages, inherited member and
+constructor documentation, and typed Python inventory entries.
 
-GitHub Actions runs these checks for pushes and pull requests. Successful runs
-provide an artifact named `astro-myst-notebooks-<commit>`, containing the tested
-`.tgz` and `SHA256SUMS`. Artifact downloads require GitHub sign-in and remain
-available for 30 days; keep a local copy for consumers that depend on one.
-To verify a downloaded archive, run `sha256sum -c SHA256SUMS` in the extracted
-artifact directory. The workflow has no npm publication step.
-
-GitHub prereleases retain a tested CI archive and its checksum at a fixed,
-public download URL. A preview tag identifies the source commit; its assets
-must not be replaced with a different build. These attachments are distinct
-from GitHub's automatically generated source archives, which lack the compiled
-package assets. To check a published attachment through the same consumer flow:
+`--browser` serves the built consumer under `/manual/`, executes Python in
+Chromium, and checks recovery from an infinite loop. Use an installed Chromium
+binary or set `PLAYWRIGHT_CHROMIUM_EXECUTABLE`. The consumer is retained for
+inspection. To validate a specific local archive:
 
 ```sh
-pixi run npm run release:check -- --archive https://github.com/akhmerov/astro-myst-notebooks/releases/download/v0.4.2/astro-myst-notebooks-0.4.2.tgz --api --browser
+pixi run npm run release:check -- --archive /absolute/path/to/astro-myst-notebooks-0.5.0-alpha.0.tgz --api --browser
 ```
 
-To initialize another project from an unpublished archive, run from that
-project's root (use an absolute archive path):
+To initialize another project from that archive, run in the consumer's root:
 
 ```sh
-npm exec --package=/path/to/astro-myst-notebooks-0.4.2.tgz -- astro-myst-notebooks init --package /path/to/astro-myst-notebooks-0.4.2.tgz
+archive=/absolute/path/to/astro-myst-notebooks-0.5.0-alpha.0.tgz
+npm exec --yes --package="$archive" -- astro-myst-notebooks init --package "$archive"
 ```
+
+The npm lockfile records the archive's path and integrity. Keep that archive
+available for subsequent `npm ci` runs.
+
+GitHub Actions runs package, documentation, browser, and archive-consumer checks.
+Successful runs upload an artifact named `astro-myst-notebooks-<commit>` with
+the tested `.tgz` and `SHA256SUMS`. Artifact downloads require sign-in and expire
+after 30 days. Retain local copies used by consumers. Verify downloaded files
+with `sha256sum -c SHA256SUMS`. The check workflow does not publish to npm.
+
+## Standalone autodoc workspace
+
+The repository uses npm workspaces with independently versioned packages.
+`packages/myst-autodoc` is the canonical `myst-python-autodoc` plugin. It uses
+Griffe and typed inventories independently of Astro. Root builds copy its
+runtime files into `dist/engine/autodoc/`; change the workspace source rather
+than that generated copy.
+
+Build its archive and run the standalone interoperability checks:
+
+```sh
+pixi run npm pack ./packages/myst-autodoc
+pixi install --locked -e interop
+pixi run npm run autodoc:test
+```
+
+The tests consume the packed plugin, run MyST, and use a separate Sphinx
+consumer to resolve published Python names over HTTP. The isolated Sphinx
+dependencies live in the existing `interop` Pixi environment. See the
+[workspace README](https://github.com/akhmerov/astro-myst-notebooks/tree/main/packages/myst-autodoc)
+for standalone configuration. That public link follows `main`; use the local
+workspace README when testing this unpublished migration.
+
+## Migration acceptance
+
+The public entry points are Astro and Starlight. The historical static-theme
+experiment is evidence for the resolved-document boundary, rather than a
+second supported website entry point.
+
+Before replacing the previous document pipeline, require:
+
+- source origins that never label mismatched text as `exact`, with agreed
+  coverage against the old pipeline;
+- explained differences in rendered text, routes, anchors, links, citations,
+  include handling, and presentation;
+- supported or explicitly rejected execution settings, bounded kernel
+  concurrency, correct invalidation, and kernel termination;
+- a consumer installed from archives, without checkout imports, with build and
+  development reload, inventories, a deployment prefix, and browser execution;
+- recorded Pymablock validation and an independent review of remaining gaps.
+
+A prototype probe or successful export command is insufficient on its own.
+The old resolver can be removed after those gates pass; a permanent second
+pipeline would duplicate the same correctness obligations.
 
 ## Publish the documentation
 
 The [public documentation](https://akhmerov.github.io/astro-myst-notebooks/)
-tracks `main` and displays an alpha notice on every page. It can describe changes
-newer than the most recent downloadable preview.
+tracks `main` and displays an alpha notice. It can describe changes newer than
+the latest downloadable preview. The unpublished migration must not be confused
+with an existing release archive.
 
-The Deploy documentation workflow builds with the Pages origin and repository
-path, checks the output, and runs the browser notebook tests before deploying
-`docs/dist/`. GitHub Pages must use **GitHub Actions** as its publishing source.
-Pushes to `main` deploy automatically; the workflow can also be run manually.
-Pull requests do not deploy.
+The documentation workflow builds with the Pages origin and repository path,
+checks the output, and runs browser notebook tests before deployment. GitHub
+Pages must use **GitHub Actions** as its publishing source. Pushes to `main`
+deploy automatically; pull requests do not deploy.
 
-To check the same deployment path locally:
+Check the same path locally:
 
 ```sh
 DOCS_SITE=https://akhmerov.github.io DOCS_BASE=/astro-myst-notebooks pixi run docs-test
@@ -158,32 +216,26 @@ DOCS_SITE=https://akhmerov.github.io DOCS_BASE=/astro-myst-notebooks pixi run np
 
 ## Dependency maintenance
 
-The release build minifies browser JavaScript and copies the supported classic
-Xeus workers. Consumers serve these files unchanged; their Astro build does not
-compile Jupyter workers. Exact bundled package identities and license notices
-are included in `dist/notebooks/browser/`.
+Pin the MyST CLI version and gate upgrades on real document, execution,
+provenance, and consumer checks. The adapter consumes MyST's manifest and page
+JSON rather than its Session internals; that still requires versioned fixtures
+and compatibility tests. Probe reports must record the executable version that
+actually ran.
 
-JavaScript debug source maps remain in the package for debugging, but are not
-linked from the scripts or copied into generated sites. MyST source-selection
-metadata is separate and remains in every rendered page. The shared notebook
-JavaScript has a 20 MB deployment budget, checked when testing the archive.
-The consumer's Python environment and rendered outputs add to its total site size.
+The release build minifies browser JavaScript and copies supported classic
+Xeus workers. Consumers serve those assets unchanged. Package identities and
+license notices are in `dist/notebooks/browser/`. Debug JavaScript source maps
+remain in the archive for debugging, but deployed scripts do not reference or
+copy them. These are separate from the MyST source-selection markers on pages.
+The archive consumer check enforces a 20 MB browser-JavaScript budget.
 
-Keep the overridden sanitizer and CSV parser versions exact, and pin the direct
-KaTeX dependency used by the `rehype-katex` override. Ranged overrides can make
-`npm ci` resolve newer versions and reject the committed lockfile. Update these
-pins and the lockfile together; KaTeX rendering and styles must use the same version.
+Keep overridden sanitizer and CSV parser versions exact, and pin the direct
+KaTeX dependency used by the `rehype-katex` override. Ranged overrides can cause
+`npm ci` to resolve newer versions and reject the committed lockfile. Update
+pins and the lockfile together; KaTeX rendering and styles must match.
 
-The tested MyST dependency graph is bundled into the npm archive. This carries
-patched transitive versions and matching dependency declarations to consumers,
-where npm would otherwise ignore our root overrides. The small manifest
-patches are checked against both installed manifests and the lockfile, then
-recorded in the archive's `dist/DEPENDENCY-PATCHES.json`. A production shrinkwrap
-is generated alongside them in staging. Review
-both development and fresh-consumer audits; browser libraries that ship their
-own compiled code need separate scrutiny.
-
-The upstream Markdown-it 13 advisories remain: upgrading it breaks MyST's math
-plugin's internal imports. The development tree also retains upstream Thebe
-peer dependencies and deprecation warnings; consumers do not install Thebe or
-Pyodide packages. Keep the reviewed `allowScripts` entries version-specific.
+The archive carries the tested bundled MyST dependency graph, corresponding
+manifest patches, and a production shrinkwrap. Patch checks fail when upstream
+manifests change, so each dependency upgrade needs deliberate review. Inspect
+both development and fresh-consumer audit results; compiled browser libraries
+need their own scrutiny. Keep install-script permissions version-specific.

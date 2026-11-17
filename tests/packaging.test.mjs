@@ -17,6 +17,7 @@ async function fixture(fn) {
 test('initializer previews changes and rejects conflicting files before modifying a project',()=>fixture(async root=>{
   const plan=await initialize({root,dryRun:true});
   assert.ok(plan.files.includes('docs/environment.yml'));
+  assert.ok(plan.files.includes('docs/myst.yml'));
   await mkdir(join(root,'docs'));
   await writeFile(join(root,'docs/astro.config.mjs'),'// existing project');
   await assert.rejects(initialize({root}),/Refusing to replace/);
@@ -42,6 +43,22 @@ test('initializer preserves existing TOML and writes a default port in both mani
       'depends-on': ['docs-install'], args: [{ arg: 'port', default: '51300' }] });
   });
 });
+
+test('initializer configures an Astro-led MyST project and generic API extraction without Pydocs middleware', () => fixture(async root => {
+  const contract = JSON.parse(await readFile(new URL('../dist/environment-contract.json', import.meta.url), 'utf8'));
+  await writeFile(join(root, 'pixi.toml'), stringify({ workspace: { name: 'fixture', channels: ['conda-forge'], platforms: ['linux-64'] },
+    dependencies: { ...contract.conda, ...contract.apiConda }, 'pypi-dependencies': { ...contract.pypi, ...contract.apiPypi },
+    feature: { docs: {} }, environments: { docs: ['docs'] } }));
+  await initialize({ root, api: 'example', install: false });
+  const config = await readFile(join(root, 'docs/astro.config.mjs'), 'utf8');
+  assert.match(config, /astro-myst-notebooks\/starlight'/);
+  assert.match(config, /modules: \["example"\]/);
+  assert.doesNotMatch(config, /starlight-pydocs|\/starlight\/api/);
+  const manifest = JSON.parse(await readFile(join(root, 'docs/package.json'), 'utf8'));
+  assert.equal(manifest.dependencies['starlight-pydocs'], undefined);
+  assert.match(await readFile(join(root, 'docs/myst.yml'), 'utf8'), /version: 1\nproject:/);
+  await assert.rejects(readFile(join(root, 'docs/src/middleware.ts')), { code: 'ENOENT' });
+}));
 
 test('packing patches an isolated payload and leaves the checkout and previous archive intact on failure', () => fixture(async root => {
   const json = async (path, value) => {

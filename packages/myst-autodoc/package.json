@@ -1,5 +1,5 @@
 {
-  "name": "@astro-myst-notebooks/autodoc",
+  "name": "myst-python-autodoc",
   "version": "0.1.0",
   "description": "Python API documentation and Sphinx inventories for MyST",
   "type": "module",
@@ -9,5 +9,5 @@
   "bin": { "myst-autodoc": "./cli.mjs" },
   "files": ["*.mjs", "extract.py", "README.md", "LICENSE"],
   "dependencies": { "intersphinx": "^1.1.0" },
-  "peerDependencies": { "mystmd": "^1.11.0" }
+  "peerDependencies": { "mystmd": "^1.13.0" }
 }

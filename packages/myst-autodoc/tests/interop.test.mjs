@@ -147,7 +147,7 @@ site:
 `);
     await writeFile(join(consumer, 'index.md'), `# Consumer
 
-[Solve](xref:api#sample_api.solve), [Result](xref:api#sample_api.result),
+[Solve](xref:api#sample_api.solve), [Result](xref:api#sample_api.Result),
 [Canonical](xref:api#sample_api._impl.solve).
 `);
     await run(process.execPath, [join(root, 'node_modules/mystmd/dist/myst.cjs'), 'build', '--site', '--strict'], consumer);
@@ -167,6 +167,56 @@ site:
     const before = await readFile(join(site, 'objects.inv'));
     await augmentInventory({ site, base: '/preview/' });
     assert.deepEqual(await readFile(join(site, 'objects.inv')), before);
+  });
+
+  await t.test('autolink resolves qualified and unambiguous public Python names', async () => {
+    const index = join(project, 'index.md');
+    const previous = await readFile(index, 'utf8');
+    await writeFile(index, previous + '\n\n{autolink}`~sample_api.solve` and {autolink}`solve`.\n');
+    await build();
+    const page = JSON.parse(await readFile(join(site, 'content/index.json'), 'utf8'));
+    const matches = nodes(page.mdast).filter(node => node.type === 'crossReference' && node.label === 'sample_api._impl.solve'
+      && node.children?.some(child => child.type === 'inlineCode' && child.value === 'solve'));
+    assert.equal(matches.length, 2);
+    assert.ok(matches.every(node => node.resolved && node.url === '/api'));
+    await writeFile(index, previous);
+  });
+
+  await t.test('Python targets differing only in case remain distinct', async () => {
+    const consumer = join(directory, 'case-consumer');
+    await mkdir(consumer);
+    await writeFile(join(consumer, 'cases.py'), 'def value():\n    """Lowercase function."""\n\ndef Value():\n    """Uppercase function."""\n');
+    await writeFile(join(consumer, 'autodoc.mjs'), "import {createAutodoc} from '../package/index.mjs';\nexport default createAutodoc({modules:['cases'],searchPaths:['.']});\n");
+    await writeFile(join(consumer, 'myst.yml'), 'version: 1\nproject:\n  plugins: [autodoc.mjs]\n  toc:\n    - file: index.md\nsite:\n  template: book-theme\n');
+    await writeFile(join(consumer, 'index.md'), '# Cases\n\n:::{autodoc} cases.value\n:::\n\n:::{autodoc} cases.Value\n:::\n\n{autolink}`cases.value` and {autolink}`cases.Value`.\n');
+    await run(process.execPath, [cli, 'build'], consumer);
+    const page = JSON.parse(await readFile(join(consumer, '_build/site/content/index.json'), 'utf8'));
+    const links = nodes(page.mdast).filter(node => node.type === 'crossReference');
+    assert.equal(links.length, 2);
+    assert.ok(links.every(node => node.resolved));
+    assert.notEqual(links[0].html_id, links[1].html_id);
+    const inventory = new Inventory({ path: join(consumer, '_build/site/objects.inv') });
+    await inventory.load();
+    assert.notEqual(inventory.data['py:function']['cases.value'].location, inventory.data['py:function']['cases.Value'].location);
+  });
+
+  await t.test('class bases link known local definitions and preserve unavailable external bases as code', async () => {
+    const consumer = join(directory, 'inheritance-consumer');
+    await mkdir(consumer);
+    await writeFile(join(consumer, 'inheritance.py'), 'from unavailable_library import External as ExternalBase\n\nclass Base:\n    """Local base."""\n\nclass Sub(Base, ExternalBase):\n    """Derived class."""\n');
+    await writeFile(join(consumer, 'autodoc.mjs'), "import {createAutodoc} from '../package/index.mjs';\nexport default createAutodoc({modules:['inheritance'],searchPaths:['.']});\n");
+    await writeFile(join(consumer, 'myst.yml'), 'version: 1\nproject:\n  plugins: [autodoc.mjs]\n  toc:\n    - file: index.md\nsite:\n  template: book-theme\n');
+    await writeFile(join(consumer, 'index.md'), '# Inheritance\n\n:::{autodoc} inheritance.Base\n:::\n\n:::{autodoc} inheritance.Sub\n:::\n');
+    await run(process.execPath, [cli, 'build'], consumer);
+    const page = JSON.parse(await readFile(join(consumer, '_build/site/content/index.json'), 'utf8'));
+    const bases = nodes(page.mdast).find(node => node.type === 'paragraph' && node.children?.[0]?.type === 'strong'
+      && node.children[0].children?.[0]?.value === 'Bases:');
+    assert.ok(bases, 'base classes must be displayed');
+    const local = bases.children.find(node => node.type === 'crossReference');
+    assert.ok(local?.resolved && local.identifier === 'inheritance.Base');
+    assert.equal(local.children[0].value, 'Base');
+    assert.ok(bases.children.some(node => node.type === 'inlineCode' && node.value === 'ExternalBase'));
+    assert.ok(!nodes(bases).some(node => node.url?.includes('unavailable_library') || node.url?.startsWith('http')));
   });
 
   await t.test('RST docstrings resolve local names and an external Sphinx inventory', async () => {

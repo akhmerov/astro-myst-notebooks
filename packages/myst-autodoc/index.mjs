@@ -16,9 +16,9 @@ function walk(node, fn) {
 
 /** A MyST plugin factory. Python extraction is lazy, static, and cached per build. */
 export function createAutodoc({ modules, searchPaths = ['.'], python = 'python',
-  parser = 'numpy', markup = 'myst', externalReferences = {} } = {}) {
+  parser = 'numpy', markup = 'myst', externalReferences = {}, documents = {}, docstringWarnings = 'error' } = {}) {
   if (!Array.isArray(modules) || !modules.length) throw new Error('autodoc requires modules');
-  const config = { modules, searchPaths: searchPaths.map(path => resolve(path)), parser, markup };
+  const config = { modules, searchPaths: searchPaths.map(path => resolve(path)), parser, markup, documents, docstringWarnings };
   let objects;
   const byName = new Map();
   const placements = new Map();
@@ -32,14 +32,9 @@ export function createAutodoc({ modules, searchPaths = ['.'], python = 'python',
     if (result.status !== 0) throw new Error(result.stderr.trim() || 'autodoc extraction failed');
     const model = JSON.parse(result.stdout);
     if (model.version !== 1) throw new Error('Unsupported autodoc model version');
+    for (const diagnostic of model.diagnostics ?? []) console.warn(`autodoc: ${diagnostic.message}`);
     objects = model.objects;
-    const identifiers = new Map();
     for (const obj of Object.values(objects)) for (const name of obj.aliases) {
-      const previous = identifiers.get(name.toLowerCase());
-      if (previous && previous !== obj.canonical) {
-        throw new Error(`MyST labels are case insensitive: conflicting Python name ${name}`);
-      }
-      identifiers.set(name.toLowerCase(), obj.canonical);
       byName.set(name, objects[name] ?? obj);
     }
   }
@@ -49,11 +44,17 @@ export function createAutodoc({ modules, searchPaths = ['.'], python = 'python',
     let target = node.target.replace(/^~/, '').replace(/\(\)$/, '');
     const [head, ...tail] = target.split('.');
     if (node.scope?.[head]) target = [node.scope[head], ...tail].join('.');
-    const obj = byName.get(target);
+    let obj = byName.get(target);
+    if (!obj && !target.includes('.')) {
+      const matches = new Map([...byName.entries()].filter(([name]) => name.split('.').at(-1) === target)
+        .map(([, object]) => [object.canonical, object]));
+      if (matches.size > 1) file.fail(`Ambiguous Python reference: ${target}; use a qualified name`);
+      if (matches.size === 1) obj = matches.values().next().value;
+    }
     if (obj) {
       const accepted = pythonKinds[node.role];
       if (accepted && !accepted.includes(obj.kind)) file.fail(`Python ${node.role} reference has wrong kind: ${target} (${obj.kind})`);
-      return { type: 'crossReference', identifier: obj.canonical.toLowerCase(),
+      return { type: 'crossReference', identifier: obj.canonical,
         label: obj.canonical, children: [code(node.title)] };
     }
     const prefix = Object.keys(externalReferences).sort((a, b) => b.length - a.length)
@@ -83,11 +84,23 @@ export function createAutodoc({ modules, searchPaths = ['.'], python = 'python',
       });
       return nodes;
     };
-    const children = [{ type: 'heading', depth: level, identifier: obj.canonical.toLowerCase(),
+    const children = [{ type: 'heading', depth: level, identifier: obj.canonical,
       label: obj.canonical, html_id: anchor(obj.canonical), children: [code(obj.name)],
       data: { pythonObject: { version: 1, name: obj.name, canonical: obj.canonical,
         kind: obj.kind, aliases: obj.aliases, source: obj.source } } }];
     if (!summary) children.push({ type: 'code', lang: 'python', value: obj.overloads.length ? obj.overloads.join('\n') : obj.signature });
+    if (!summary && obj.bases?.length) children.push({ type: 'paragraph', children: [
+      { type: 'strong', children: [text('Bases:')] }, text(' '),
+      ...obj.bases.flatMap((base, index) => {
+        const known = byName.get(base.target);
+        const rendered = known?.kind === 'class'
+          ? { type: 'crossReference', identifier: known.canonical, label: known.canonical, children: [code(base.name)] }
+          : code(base.name);
+        // External bases remain visible even without an installed dependency or
+        // inventory. Never invent a URL or import a runtime to discover them.
+        return index ? [text(', '), rendered] : [rendered];
+      }),
+    ] });
     for (const section of obj.sections) {
       if (section.kind === 'text') children.push(...prose(section.text));
       else if (section.kind === 'examples') {
@@ -144,8 +157,8 @@ export function createAutodoc({ modules, searchPaths = ['.'], python = 'python',
         return nodes;
       },
     }],
-    roles: Object.keys(pythonKinds).map(role => ({
-      name: `py:${role}`, alias: [role], body: { type: String, required: true },
+    roles: [...Object.keys(pythonKinds), 'autolink'].map(role => ({
+      name: role === 'autolink' ? role : `py:${role}`, ...(role === 'autolink' ? {} : { alias: [role] }), body: { type: String, required: true },
       run(data) {
         const value = data.body.trim();
         const match = /^(.*?)\s+<([^>]+)>$/.exec(value);
@@ -170,8 +183,8 @@ export function createAutodoc({ modules, searchPaths = ['.'], python = 'python',
             await expand(node);
             let block = { type: 'block', data: { autodocGenerated: true }, children: node.children };
             // Alias blocks expose ordinary MyST targets, including in myst.xref.json.
-            for (const alias of node.aliases.filter(name => name.toLowerCase() !== node.canonical.toLowerCase())) {
-              block = { type: 'block', data: { autodocGenerated: true }, identifier: alias.toLowerCase(), label: alias,
+            for (const alias of node.aliases.filter(name => name !== node.canonical)) {
+              block = { type: 'block', data: { autodocGenerated: true }, identifier: alias, label: alias,
                 html_id: anchor(alias), children: [block] };
             }
             return block;

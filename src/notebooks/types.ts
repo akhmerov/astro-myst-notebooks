@@ -16,6 +16,8 @@ export interface BrowserOptions {
   startupTimeout: number;
 }
 export interface InteractiveOptions {
+  /** Optional existing Pixi interpreter for browser-build tooling; not reader Python. */
+  python?: string;
   /** Browser conda environment. Defaults to environment.yml in the Astro root. */
   environment?: URL;
   /** Custom JupyterLite command prefix. */
@@ -33,5 +35,9 @@ export interface ExecutionOptions {
   cwd?: URL;
   python?: string;
   timeout?: number;
+  /** Maximum native kernels executing at once. */
+  concurrency?: number;
+  /** External Python/data inputs in addition to project Python files and environment locks. */
+  dependencies?: (URL | string)[];
   pixi?: { manifest: URL; feature: string };
 }

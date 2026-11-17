@@ -22,9 +22,10 @@ function revision(root) {
  * MyST owns semantics. CommonMark/GFM supplies accurate lexical positions for
  * prose; ambiguous or transformed text is explicitly a range, never guessed.
  */
-export function attachOrigins(tree, source, path, root, fullSource = source) {
-  const base = fullSource.indexOf(source);
-  if (base < 0 || source.length > 0 && fullSource.indexOf(source, base + 1) >= 0) {
+export function attachOrigins(tree, source, path, root, fullSource = source, options = {}) {
+  const base = options.sourceOffset ?? fullSource.indexOf(source);
+  if (base < 0 || fullSource.slice(base, base + source.length) !== source ||
+      options.sourceOffset === undefined && source.length > 0 && fullSource.indexOf(source, base + 1) >= 0) {
     throw new Error(`Cannot map filtered include uniquely to source: ${path}`);
   }
   const starts = [0];
@@ -65,14 +66,18 @@ export function attachOrigins(tree, source, path, root, fullSource = source) {
   function walk(node, bounds = { start: 0, end: source.length }, directiveBody) {
     if (node.position && !['text', 'emphasis', 'strong', 'link', 'inlineCode'].includes(node.type)) {
       bounds = { start: starts[node.position.start.line - 1] ?? bounds.start,
-        end: starts[node.position.end.line] ?? source.length };
+        // Some MyST-generated definition terms report an end line before the
+        // start line. Bound lookup to the actual start line instead; lexical
+        // source equality still decides whether any text can be exact.
+        end: starts[Math.max(node.position.start.line, node.position.end.line)] ?? source.length };
     }
     if (node.type === 'mystDirective') directiveBody = bodies.get(`${node.position?.start.line}:${node.name}`);
     let mapped = origin(bounds.start, bounds.end);
     if (node.type === 'text' || node.type === 'inlineCode') {
-      const candidates = lexical.filter(entry => !used.has(entry) && entry.type === node.type && entry.value === node.value && entry.start >= bounds.start && entry.end <= bounds.end);
+      const candidates = lexical.filter(entry => !used.has(entry) && entry.type === node.type && (entry.value === node.value || options.restoreTypography && authoredTextEquivalent(entry.value, node.value)) && entry.start >= bounds.start && entry.end <= bounds.end);
       if (candidates.length === 1) {
         const entry = candidates[0]; used.add(entry);
+        if (options.restoreTypography) node.value = entry.value;
         const raw = source.slice(entry.start, entry.end);
         if (node.type === 'inlineCode' && raw.includes(node.value)) {
           const start = entry.start + raw.indexOf(node.value);
@@ -104,4 +109,65 @@ export function sourceText(h, node) {
   const origin = node.data?.origin;
   return h(node, 'span', origin ? { 'data-source-location': JSON.stringify(origin) }
     : { 'data-source-generated': 'true' }, [{ type: 'text', value: node.value }]);
+}
+
+/** Compare only the documented Markdown typographer/link display rewrites.
+ * Restoring the original lexical value preserves authored punctuation; it does
+ * not normalize arbitrary text or infer a source offset from rendered prose.
+ */
+export function authoredTextEquivalent(left, right) {
+  const plain = value => String(value).replaceAll('\u200b', '')
+    .replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
+    .replaceAll('…', '...').replaceAll('–', '--').replaceAll('—', '---')
+    .replaceAll('©', '(c)').replaceAll('®', '(r)').replaceAll('™', '(tm)')
+    .replaceAll('±', '+-');
+  return plain(left) === plain(right);
+}
+
+/** Prove a range against Markdown's lexical text, including escaped characters,
+ * entities and continuation indentation. Such a range remains inexact: unlike
+ * an exact marker its source bytes are not the DOM text. */
+export function markdownRangeContains(source, value, type = 'text', range) {
+  if (range) {
+    const tree = fromMarkdown(source, { extensions: [gfm(), math()], mdastExtensions: [gfmFromMarkdown(), mathFromMarkdown()] });
+    let matched = false;
+    visit(tree, type, node => {
+      if (node.position?.start.offset >= range.start && node.position?.end.offset <= range.end &&
+          typeof node.value === 'string' && node.value.includes(value)) matched = true;
+    });
+    if (matched) return true;
+    source = source.slice(range.start, range.end);
+  }
+  // A range may begin halfway through an inline paragraph. The sentinel keeps
+  // its leading whitespace from being mistaken for block indentation.
+  const tree = fromMarkdown('\uFFFC' + source, { extensions: [gfm(), math()], mdastExtensions: [gfmFromMarkdown(), mathFromMarkdown()] });
+  let matched = false;
+  visit(tree, type, node => { if (typeof node.value === 'string' && node.value.replace(/^\uFFFC/, '').includes(value)) matched = true; });
+  return matched;
+}
+
+/** Recover only a known typographic display rewrite inside an authored range.
+ * Repeated equal source strings are safe; different matching spellings are
+ * ambiguous and deliberately rejected by the caller.
+ */
+export function authoredTextInRange(value, source) {
+  const replacements = new Map([['‘', "'"], ['’', "'"], ['“', '"'], ['”', '"'], ['…', '...'],
+    ['–', '--'], ['—', '---'], ['©', '(c)'], ['®', '(r)'], ['™', '(tm)'], ['±', '+-'], ['\u200b', '']]);
+  const normalize = input => {
+    let normalized = ''; const offsets = [];
+    for (let index = 0; index < input.length; index++) {
+      const part = replacements.get(input[index]) ?? input[index];
+      for (const character of part) { normalized += character; offsets.push(index); }
+    }
+    return { normalized, offsets };
+  };
+  const target = normalize(value).normalized;
+  if (!target) return undefined;
+  const { normalized, offsets } = normalize(source);
+  const matches = new Set();
+  for (let at = normalized.indexOf(target); at >= 0; at = normalized.indexOf(target, at + 1)) {
+    const candidate = source.slice(offsets[at], offsets[at + target.length - 1] + 1);
+    if (authoredTextEquivalent(candidate, value)) matches.add(candidate);
+  }
+  return matches.size === 1 ? [...matches][0] : undefined;
 }

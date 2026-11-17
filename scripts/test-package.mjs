@@ -5,6 +5,9 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import assert from 'node:assert/strict';
+import { Inventory } from 'intersphinx';
+import { fromHtml } from 'hast-util-from-html';
+import { visit } from 'unist-util-visit';
 const { values } = parseArgs({ options: {
   api: { type: 'boolean' }, browser: { type: 'boolean' }, archive: { type: 'string' },
 } });
@@ -18,7 +21,23 @@ function run(command,args,cwd=root) {
   assert.equal(result.status,0,`${command} failed in ${cwd}`);
 }
 console.log(`Testing packed release in ${root}`);
-if (api) await writeFile(join(root, 'example.py'), '\"\"\"A small Python API.\"\"\"\n\ndef add(a: int, b: int) -> int:\n    \"\"\"Add two integers.\"\"\"\n    return a + b\n');
+if (api) await writeFile(join(root, 'example.py'), `"""A small Python API."""
+
+def add(a: int, b: int) -> int:
+    """Add two integers."""
+    return a + b
+
+class Base:
+    def __init__(self, value: int = 2):
+        """Construct a stored value."""
+        self.value = value
+    def inherited(self) -> int:
+        """Read an inherited stored value."""
+        return self.value
+
+class Child(Base):
+    """A class with an inherited constructor and member."""
+`);
 // Install and execute the CLI from the artifact, without linking to this checkout.
 run('npm',['exec','--yes',`--package=${archive}`,'--','astro-myst-notebooks','init','--package',archive,...(api?['--api','example']:[])]);
 // Exercise the bundled MyST extensions and notebook loader from the archive.
@@ -45,15 +64,10 @@ await writeFile(join(root, 'docs/src/content/docs/notebook.ipynb'), JSON.stringi
     { cell_type: 'code', metadata: {}, execution_count: null, outputs: [], source: 'print("Notebook from packed loader")' },
   ],
 }));
-if (api) await writeFile(join(root,'docs/src/content/docs/api-example.md'),'---\ntitle: API example\n---\n\n```{autodoc} example.add\n```\n');
-if (api) await writeFile(join(root,'docs/src/middleware.ts'), `
-import { defineMiddleware } from 'astro:middleware';
-import { autodocOutline } from 'astro-myst-notebooks/autodoc';
-export const onRequest = defineMiddleware((_context, next) => {
-  if (autodocOutline('## API\\n\\n\\x60\\x60\\x60{autodoc} example.add\\n\\x60\\x60\\x60').length !== 1) throw new Error('API outline missing');
-  return next();
-});
-`);
+if (api) await writeFile(join(root,'docs/src/content/docs/api-example.md'),'---\ntitle: API example\n---\n\n```{autodoc} example.add\n```\n\nUse {autolink}`~example.add`.\n');
+await writeFile(join(root, 'docs/src/content/docs/references.bib'), '@article{packaged2026, title={A packaged citation}, author={Example, Ada}, journal={Example Journal}, year={2026}}\n');
+await writeFile(join(root, 'docs/src/content/docs/citations.md'), '# Packaged citations\n\nSee {cite:p}`packaged2026`.\n\n```{bibliography}\n```\n');
+await writeFile(join(root, 'docs/myst.yml'), (await readFile(join(root, 'docs/myst.yml'), 'utf8')) + '  bibliography:\n    - src/content/docs/references.bib\n');
 const configPath = join(root, 'docs/astro.config.mjs');
 const config = await readFile(configPath, 'utf8');
 await writeFile(configPath, config.replace('notebooks({', "notebooks({ presentation: { input: 'hide' },"));
@@ -64,15 +78,37 @@ assert.match(html, /<details class="jupyter-input-area jupyter-input-disclosure"
 const features = await readFile(join(root, 'docs/dist/features/index.html'), 'utf8');
 assert.match(features, /role="tab"/);
 assert.match(features, /class="card/);
-assert.match(features, /jupyter-inline[^>]*>42</);
+const inlineResults = [];
+const textContent = node => node.type === 'text' ? node.value : (node.children ?? []).map(textContent).join('');
+visit(fromHtml(features), 'element', node => {
+  if (node.properties.className?.includes('jupyter-inline')) inlineResults.push(textContent(node));
+});
+assert.ok(inlineResults.includes('42'), 'the computed inline expression must publish 42');
+assert.match(features, /data-source-location=/);
+assert.match(features, /Packaged first tab/);
+assert.match(features, /Packaged second tab/);
+assert.match(await readFile(join(root, 'docs/dist/citations/index.html'), 'utf8'), /A packaged citation/);
+await access(join(root, 'docs/dist/_myst/config.json'));
+await access(join(root, 'docs/dist/myst.xref.json'));
+await access(join(root, 'docs/dist/objects.inv'));
 assert.match(await readFile(join(root, 'docs/dist/notebook/index.html'), 'utf8'), /Notebook from packed loader/);
 if (api) assert.match(await readFile(join(root,'docs/dist/api-example/index.html'),'utf8'),/Add two integers/);
+if (api) {
+  assert.match(await readFile(join(root, 'docs/dist/api/example/index.html'), 'utf8'), /A small Python API/);
+  const child = await readFile(join(root, 'docs/dist/api/example/Child/index.html'), 'utf8');
+  assert.match(child, /Construct a stored value/);
+  assert.match(child, /Read an inherited stored value/);
+  const inventory = new Inventory({ path: join(root, 'docs/dist/objects.inv') });
+  await inventory.load();
+  assert.match(inventory.data['py:function']['example.add'].location, /api-example.*#py-/);
+  assert.ok(inventory.data['py:method']['example.Child.inherited']);
+}
 const installed=JSON.parse(await readFile(join(root,'docs/node_modules/astro-myst-notebooks/package.json'),'utf8'));
 const packageRoot = join(root, 'docs/node_modules/astro-myst-notebooks');
 const exportTargets = value => typeof value === 'string' ? [value] : Object.values(value).flatMap(exportTargets);
 for (const path of [...exportTargets(installed.exports), ...Object.values(installed.bin),
   'LICENSE', 'npm-shrinkwrap.json', 'dist/execute.py', 'dist/environment-contract.json',
-  'dist/notebooks/style.css', 'dist/notebooks/browser/LICENSES.txt',
+  'dist/notebooks/style.css', 'dist/engine/autodoc/extract.py', 'dist/engine/autodoc/index.mjs', 'dist/notebooks/browser/LICENSES.txt',
   'dist/notebooks/browser/DEPENDENCIES.json', 'dist/DEPENDENCY-PATCHES.json']) {
   await access(join(packageRoot, path));
 }
@@ -90,7 +126,8 @@ for (const name of deployedFiles.filter(name => name.endsWith('.js'))) {
 assert.ok(runtimeBytes < 20_000_000, `Notebook JavaScript exceeds the 20 MB deployment budget: ${runtimeBytes} bytes`);
 await access(join(packageRoot, 'dist/notebooks/browser/client.js.map'));
 const modules=JSON.parse(await readFile(join(root,'docs/package-lock.json'),'utf8')).packages;
-assert.ok(!Object.keys(modules).some(name=>/node_modules\/(thebe-lite|@jupyterlite\/pyodide-kernel)$/.test(name)));
+assert.ok(!Object.keys(modules).some(name=>/node_modules\/(thebe-lite|starlight-pydocs|@jupyterlite\/pyodide-kernel)$/.test(name)));
+assert.ok(!Object.keys(modules).some(name => name.startsWith('packages/') || name.includes('myst-python-autodoc')), 'root consumer must not depend on checkout workspaces');
 run('pixi',['run','-e','docs','--dry-run','docs-dev']);
 run('pixi',['run','-e','docs','--dry-run','docs-dev','51559']);
 // Rebuild under a prefix, exercising the same cached environment.

@@ -1,6 +1,6 @@
 {
   "name": "astro-myst-notebooks",
-  "version": "0.4.2",
+  "version": "0.5.0-alpha.0",
   "type": "module",
   "description": "MyST documents, Jupyter execution, source maps, and browser notebooks for Astro and Starlight",
   "license": "BSD-2-Clause",
@@ -29,21 +29,11 @@
       "types": "./dist/source-loader.d.ts",
       "import": "./dist/source-loader.js"
     },
-    "./pydocs": {
-      "types": "./dist/pydocs-inventory.d.ts",
-      "import": "./dist/pydocs-inventory.js"
-    },
     "./types": {
       "types": "./dist/notebooks/types.d.ts"
     },
-    "./AutodocContent.astro": "./dist/AutodocContent.astro",
-    "./griffe": "./dist/griffe_myst.py",
-    "./CheckedDocstrings.astro": "./dist/CheckedDocstrings.astro",
-    "./inventory": {
-      "types": "./dist/inventory.d.ts",
-      "import": "./dist/inventory.js"
-    },
-    "./autodoc": "./dist/autodoc.mjs",
+    "./inventory": "./dist/engine/autodoc/inventory.mjs",
+    "./autodoc": "./dist/engine/autodoc/index.mjs",
     "./starlight": {
       "types": "./dist/starlight/index.d.ts",
       "import": "./dist/starlight/index.js"
@@ -52,15 +42,17 @@
       "types": "./dist/starlight/content.d.ts",
       "import": "./dist/starlight/content.js"
     },
-    "./starlight/api": {
-      "types": "./dist/starlight/api.d.ts",
-      "import": "./dist/starlight/api.ts"
-    }
+    "./engine/loader": {
+      "types": "./dist/engine/loader.d.ts",
+      "import": "./dist/engine/loader.js"
+    },
+    "./engine/provenance": "./dist/engine/provenance.mjs",
+    "./engine/execution": "./dist/engine/execution.mjs"
   },
   "scripts": {
     "build": "node scripts/clean.mjs && tsc && node scripts/copy-assets.mjs && node scripts/build-browser.mjs",
     "check": "tsc --noEmit",
-    "test": "npm run build && node --test tests/*.test.mjs",
+    "test": "npm run build && node --test --test-concurrency=4 tests/*.test.mjs",
     "docs:build": "npm run build && astro build --root docs",
     "docs:dev": "npm run build && cd docs && astro dev",
     "docs:preview": "cd docs && astro preview",
@@ -70,15 +62,12 @@
     "package": "npm run build && node scripts/pack.mjs",
     "prepack": "node scripts/pack.mjs --guard",
     "release:check": "node scripts/test-package.mjs",
-    "myst:build": "npm run build && node experiments/myst-theme/build.mjs",
-    "myst:test": "npm run myst:build && node --test experiments/myst-theme/tests/*.test.mjs",
-    "myst:browser": "playwright test --config experiments/myst-theme/playwright.config.ts",
-    "myst:compare": "npm run build && node experiments/myst-theme/compare-execution.mjs",
     "autodoc:test": "node --test packages/myst-autodoc/tests/*.test.mjs"
   },
   "dependencies": {
     "@astrojs/markdown-remark": "^7.3.1",
     "citation-js-utils": "^1.2.8",
+    "csv-parse": "7.0.2",
     "hast-util-from-html": "^2.0.3",
     "hast-util-to-html": "^9.0.5",
     "intersphinx": "^1.1.0",
@@ -95,15 +84,18 @@
     "myst-roles": "^1.7.3",
     "myst-to-html": "^1.7.3",
     "myst-transforms": "^1.3.50",
+    "mystmd": "1.13.0",
+    "rehype-expressive-code": "^0.44.2",
     "rehype-katex": "^7.0.1",
     "remark-math": "^6.0.0",
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.2",
+    "smol-toml": "^1.4.2",
     "unified": "^11.0.5",
     "unist-util-visit": "^5.1.0",
     "vfile": "^6.0.3",
     "vite-plugin-static-copy": "^4.1.1",
-    "smol-toml": "^1.4.2"
+    "yaml": "^2.9.1"
   },
   "overrides": {
     "markdown-it": {
@@ -124,26 +116,16 @@
     }
   },
   "peerDependencies": {
-    "astro": "^7.3.2",
-    "starlight-pydocs": "^0.2.1",
-    "@astrojs/starlight": "^0.42.0"
+    "@astrojs/starlight": "^0.42.0",
+    "astro": "^7.3.2"
   },
   "peerDependenciesMeta": {
-    "starlight-pydocs": {
-      "optional": true
-    },
     "@astrojs/starlight": {
       "optional": true
     }
   },
   "devDependencies": {
     "@astrojs/starlight": "^0.42.0",
-    "@playwright/test": "^1.63.0",
-    "@types/node": "^24.0.0",
-    "@types/plotly.js-dist-min": "^2.3.4",
-    "astro": "^7.3.2",
-    "starlight-pydocs": "^0.2.1",
-    "typescript": "^6.0.3",
     "@emscripten-forge/mambajs-core": "0.21.5",
     "@jupyterlab/coreutils": "~6.6.3",
     "@jupyterlab/services": "~7.6.3",
@@ -155,15 +137,17 @@
     "@jupyterlite/xeus-extension": "^5.1.0",
     "@lumino/coreutils": "^2.2.3",
     "@lumino/widgets": "^2.9.0",
-    "mermaid": "^12.0.0",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^24.0.0",
+    "@types/plotly.js-dist-min": "^2.3.4",
+    "astro": "^7.3.2",
+    "esbuild": "^0.28.2",
     "mathjax": "3.2.2",
+    "mermaid": "^12.0.0",
+    "plotly.js-dist-min": "^4.1.0",
     "thebe": "^0.9.3",
     "thebe-core": "^0.5.0",
-    "plotly.js-dist-min": "^4.1.0",
-    "esbuild": "^0.28.2",
-    "mystmd": "1.11.0",
-    "rehype-expressive-code": "^0.44.2",
-    "yaml": "^2.9.1"
+    "typescript": "^6.0.3"
   },
   "allowScripts": {
     "esbuild@0.28.2": true,
@@ -193,5 +177,8 @@
     "myst-transforms",
     "citation-js-utils",
     "rehype-katex"
+  ],
+  "workspaces": [
+    "packages/*"
   ]
 }

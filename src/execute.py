@@ -1,13 +1,101 @@
 """Versioned JSON adapter to nbclient in the project's selected Pixi environment."""
 
 import json
+import os
+import signal
 import sys
+import threading
 import tomllib
 from importlib.metadata import version
 from pathlib import Path
 
 CONTRACT = json.loads(Path(__file__).with_name("execution-contract.json").read_text())
 ENVIRONMENT = json.loads(Path(__file__).with_name("environment-contract.json").read_text())
+
+
+class KernelLifetime:
+    """Own the OS kernel process even when nbclient's event loop cannot clean up.
+
+    Jupyter launches kernels in a new session, so killing the adapter's process
+    group alone does not terminate them. The independent watchdog and SIGTERM
+    handler kill that session directly. The parent also receives its PID over a
+    private control pipe, allowing cleanup if the adapter crashes or is killed.
+    No connection information or kernel token is sent over that pipe.
+    """
+
+    def __init__(self, deadline=None):
+        self.pid = None
+        self.pgid = None
+        self.lock = threading.RLock()
+        self.previous = {}
+        self.closed = threading.Event()
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            self.previous[sig] = signal.signal(sig, self.terminate)
+        self.timer = threading.Timer(deadline, self.expire) if deadline else None
+        if self.timer:
+            self.timer.daemon = True
+            self.timer.start()
+        if os.environ.get("ASTRO_MYST_CONTROL_FD"):
+            parent = os.getppid()
+
+            def watch_parent():
+                while not self.closed.wait(0.2):
+                    if os.getppid() != parent:
+                        self.expire()
+
+            threading.Thread(target=watch_parent, daemon=True).start()
+
+    @staticmethod
+    def notify(message):
+        descriptor = os.environ.get("ASTRO_MYST_CONTROL_FD")
+        if descriptor:
+            try:
+                os.write(int(descriptor), (json.dumps(message) + "\n").encode())
+            except (OSError, ValueError):
+                pass
+
+    def record(self, manager):
+        with self.lock:
+            self.pid = getattr(manager.provisioner, "pid", None)
+            if self.pid and os.name != "nt":
+                try:
+                    pgid = os.getpgid(self.pid)
+                    self.pgid = pgid if pgid != os.getpgrp() else None
+                except ProcessLookupError:
+                    pass
+            if self.pid:
+                self.notify({"event": "kernel-started", "pid": self.pid, "pgid": self.pgid})
+
+    def kill(self):
+        with self.lock:
+            if self.pid:
+                try:
+                    if self.pgid:
+                        os.killpg(self.pgid, signal.SIGKILL)
+                    else:
+                        os.kill(self.pid, signal.SIGTERM if os.name == "nt" else signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                self.notify({"event": "kernel-stopped", "pid": self.pid})
+                self.pid = self.pgid = None
+
+    def terminate(self, signum, frame):
+        self.kill()
+        # A handler must not call asyncio/nbclient cleanup recursively while
+        # wait_for_reply owns the event loop. The kernel is already terminated.
+        os._exit(128 + signum)
+
+    def expire(self):
+        self.kill()
+        os._exit(124)
+
+    def close(self):
+        self.closed.set()
+        if self.timer:
+            self.timer.cancel()
+        self.kill()
+        for sig, previous in self.previous.items():
+            signal.signal(sig, previous)
 
 
 def environment(request):
@@ -83,6 +171,14 @@ def execute(request):
         "-f",
         "{connection_file}",
     ]
+    lifetime = KernelLifetime(request.get("deadline"))
+    start_kernel = manager.start_kernel
+
+    async def start_owned_kernel(*args, **kwargs):
+        await start_kernel(*args, **kwargs)
+        lifetime.record(manager)
+
+    manager.start_kernel = start_owned_kernel
     expressions = {}
     try:
         # Mirror NotebookClient.execute, interleaving inline expressions with
@@ -110,6 +206,8 @@ def execute(request):
                 "cell": active,
             }
         }
+    finally:
+        lifetime.close()
     return {"notebook": notebook, "expressions": expressions}
 
 

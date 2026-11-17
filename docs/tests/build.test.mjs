@@ -58,7 +58,7 @@ test('the shipped stylesheet matches the rendered KaTeX and inline output markup
   assert.match(css, /\.jupyter-output\.jupyter-inline\{[^}]*display:inline/);
 });
 
-test('layout constructs render on the authoring page', () => {
+test('layout constructs render on the authoring page', async () => {
   const nodes = elements(pages.get('authoring'));
   const diagram = nodes.find(node => node.tagName === 'pre' && node.properties.className?.includes('mermaid'));
   assert.match(text(diagram), /flowchart LR/);
@@ -67,7 +67,9 @@ test('layout constructs render on the authoring page', () => {
   assert.ok(cards[0].children.some(node => node.properties?.className?.includes('card-footer')));
   const figure = nodes.find(node => node.tagName === 'figure' && node.properties.id === 'included-figure');
   const image = elements(figure).find(node => node.tagName === 'img');
-  assert.match(image.properties.src, new RegExp(`^${base}/_astro/diagram\\.[\\w-]+\\.svg$`));
+  assert.ok(image.properties.src.startsWith(`${base}/`));
+  assert.deepEqual(await readFile(new URL(image.properties.src.slice(base.length + 1), output)),
+    await readFile(new URL('../src/content/docs/_partials/diagram.svg', import.meta.url)));
   assert.equal(image.properties.alt, 'A source box with an arrow to a page box');
   const equations = nodes.filter(node => node.properties.className?.includes('katex-display'));
   assert.ok(equations.some(node => text(node).includes('S_n = ')));

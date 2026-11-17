@@ -39,17 +39,18 @@ export async function initialize({ root = process.cwd(), dir = 'docs', environme
   for (const name of taskNames) if (data.tasks?.[name] || data.feature?.[feature]?.tasks?.[name]) throw new Error(`Pixi task ${name} already exists; choose a new site in a fresh consumer or configure the preset in the existing site`);
   const parent = relative(site,root).split(sep).join('/') + '/';
   const title = basename(root);
-  const apiOptions = api ? `, api: { packages: [{ name: ${JSON.stringify(api)}, search: [${JSON.stringify(parent)}], docstringStyle: 'numpy' }], runner: { command: ['python', '-m', 'griffe'] } }` : '';
+  const apiOptions = api ? `, api: { modules: [${JSON.stringify(api)}], searchPaths: [${JSON.stringify(parent)}], parser: 'numpy' }` : '';
   const files = {
     'package.json': JSON.stringify({ name: `${title.replace(/[^a-z0-9-]/gi,'-').toLowerCase()}-docs`, private:true, type:'module',
       scripts:{dev:'astro dev',build:'astro build',preview:'astro preview'},
       allowScripts: Object.fromEntries(Object.entries(packageJson.allowScripts ?? {}).filter(([name]) => name.startsWith('esbuild@'))),
-      dependencies:{ 'astro-myst-notebooks': packageSpec, astro:packageJson.peerDependencies.astro, '@astrojs/starlight':packageJson.peerDependencies['@astrojs/starlight'], ...(api?{'starlight-pydocs':packageJson.peerDependencies['starlight-pydocs']}:{}) } },null,2)+'\n',
-    'astro.config.mjs': `import { defineConfig } from 'astro/config';\nimport starlight from '@astrojs/starlight';\nimport notebooks from 'astro-myst-notebooks/starlight${api ? '/api' : ''}';\n\nexport default defineConfig({\n  integrations: [starlight({\n    title: ${JSON.stringify(title)},\n    plugins: [notebooks({ execution: { cwd: new URL(${JSON.stringify(parent)}, import.meta.url) }${apiOptions} })],\n  })],\n});\n`,
+      dependencies:{ 'astro-myst-notebooks': packageSpec, astro:packageJson.peerDependencies.astro, '@astrojs/starlight':packageJson.peerDependencies['@astrojs/starlight'] } },null,2)+'\n',
+    'astro.config.mjs': `import { defineConfig } from 'astro/config';\nimport starlight from '@astrojs/starlight';\nimport notebooks from 'astro-myst-notebooks/starlight';\n\nexport default defineConfig({\n  integrations: [starlight({\n    title: ${JSON.stringify(title)},\n    plugins: [notebooks({ execution: { cwd: new URL(${JSON.stringify(parent)}, import.meta.url) }${apiOptions} })],\n  })],\n});\n`,
     'src/content.config.ts': "import { notebookCollections } from 'astro-myst-notebooks/starlight/content';\n\nexport const collections = notebookCollections();\n",
     'src/content/docs/index.md': '---\ntitle: Welcome\n---\n\n```{code-cell} python\nprint("Hello from Jupyter")\n```\n',
     'environment.yml': await readFile(new URL('./templates/environment.yml',import.meta.url),'utf8'),
-    '.gitignore':'node_modules/\ndist/\n.astro/\n',
+    'myst.yml': `version: 1\nproject:\n  title: ${JSON.stringify(title)}\n`,
+    '.gitignore':'node_modules/\ndist/\n.astro/\n_build/\n.astro-myst.generated.yml\n',
   };
   for (const name of Object.keys(files)) if (await exists(join(site,name))) throw new Error(`Refusing to replace existing ${localDir}/${name}`);
   if (dryRun) return {files:Object.keys(files).map(name=>`${localDir}/${name}`), manifest, environment, contract};

@@ -3,9 +3,10 @@ title: Author MyST
 description: Write executable cells, references, includes, equations, and source-aware prose.
 ---
 
-The integration uses `myst-parser` for syntax and `myst-transforms` for document
-semantics. It supports a subset of MyST; unknown roles, unsupported constructs,
-missing references, and cyclic includes fail explicitly.
+MyST's document engine resolves the project, including references, includes,
+and computed outputs. The Astro adapter renders the supported MyST nodes;
+unknown roles, unsupported constructs, missing references, and cyclic includes
+fail explicitly.
 
 ## Jupyter notebooks as sources
 
@@ -13,8 +14,10 @@ An `.ipynb` file in the content directory is a page. Its Markdown cells become
 prose, its code cells become executable cells with their tags, and raw cells
 are not published. Page frontmatter is a YAML block at the top of the first
 Markdown cell; without a `title` there, the first heading is used. Stored
-outputs in the file are ignored: the build executes the notebook from its
-own directory, like a page with `kernelspec` frontmatter. The
+outputs in the file are ignored: the build computes outputs from its code,
+reusing successful cached results when execution inputs have not changed.
+Notebooks execute from their own directory, like a page with `kernelspec`
+frontmatter. The
 [notebook page](notebook.ipynb) of this site is such a file.
 
 Links to `other.ipynb` resolve like links to `.md` pages. Source maps for
@@ -38,10 +41,14 @@ raise RuntimeError("This fence is displayed without running")
 ```
 ````
 
-Each executable page gets a fresh native Jupyter kernel. Cells run in source
-order and share state only within that page. A cell error or timeout fails the
-build. The default working directory is `execution.cwd`; a page with
+When computation is needed, each executable page gets a fresh native Jupyter
+kernel. Cells run in source order and share state only within that page.
+A cell error or timeout fails the build. Successful results can be reused on
+later builds. The default working directory is `execution.cwd`; a page with
 `kernelspec` frontmatter instead executes from its source directory.
+The selected execution Python remains authoritative; unsupported kernel names
+fail. See [native execution](reference.md#native-execution) for timeouts,
+cache inputs, and kernel cleanup.
 
 ### Notebook presentation
 
@@ -119,6 +126,12 @@ cells have no build output but remain individually runnable in the browser.
 Set `execute: { skip: true }` in page frontmatter to skip the page's build
 execution. Set `thebe: false` to disable that page's browser controls while
 retaining build execution.
+
+`execute.cache: false` disables reuse of that page's outputs.
+`execute.depends_on_env` lists environment-variable names that affect the
+results. The `skip_execution` alias remains supported; explicit `execute.skip`
+takes precedence. Other `execute` keys fail explicitly. See
+[execution configuration](reference.md#native-execution) for data dependencies.
 
 Use `raises-exception` when a cell is expected to raise an error. Its traceback
 is rendered according to output visibility, and later cells continue. Hiding
@@ -245,7 +258,7 @@ See {eq}`energy`.
 Labelled equations are numbered unless an explicit MyST enumeration option
 says otherwise. The [walkthrough's sum](walkthrough.md#triangular-sum) is a live
 example of a file-qualified equation link. Cross-page `.md` links resolve
-through the collection manifest. Local labels take precedence; ambiguous
+through MyST's resolved project routes. Local labels take precedence; ambiguous
 remote labels need a file-qualified link.
 
 ## Tabs
@@ -400,13 +413,14 @@ Unknown terms fail the build like any other unresolved reference.
 ```
 ````
 
-Include paths resolve relative to the including file. Keep include-only files
-outside the loader's pattern; this site's underscore-prefixed filenames are
-excluded by `**/[^_]*.md`. Included prose retains its own file origin. A filtered
-include must map uniquely to a contiguous region of the original source.
+Include paths resolve relative to the including file. Automatic page discovery
+excludes underscore-prefixed files and directories; an explicit `project.toc`
+can instead select the public pages. Included prose retains its own file origin.
+A filtered include must map uniquely to a contiguous region of the original
+source.
 
 Relative image, link, and frame paths inside an included file resolve from
-that file, and Astro's image pipeline then processes local images as usual.
+that file. MyST resolves the assets, and the integration publishes their URLs.
 The figure below comes from `_partials/_figure.md` and points at an SVG next
 to it:
 
@@ -426,20 +440,24 @@ any page of the collection:
 ```{embed} #triangular-sum
 ```
 
-The copy keeps its source numbering and provenance. Executed cells cannot be
-embedded because their outputs belong to the kernel of their own page; link to
-the page instead.
+The copy keeps its source numbering and provenance. Labelled computed outputs
+can also be embedded: the producing document computes the result once, and
+the embed reuses that output. It does not create another runnable browser cell.
 
 ## Citations and inventories
 
-Declare a local BibTeX file in frontmatter, then cite its keys:
+Declare a local BibTeX file in `myst.yml`, relative to the Astro root:
+
+```yaml
+version: 1
+project:
+  bibliography:
+    - src/content/docs/references.bib
+```
+
+Then cite its keys in a page:
 
 ````markdown
----
-title: References
-bibliography: references.bib
----
-
 See {cite:p}`example`.
 
 ```{bibliography}
@@ -447,11 +465,12 @@ See {cite:p}`example`.
 ````
 
 If citations are present without a bibliography directive, the renderer appends
-the cited entries. Bibliography paths resolve relative to the page source.
+the cited entries.
 
-For external API references, configure Sphinx v2 inventories and write
+For cross-project links, configure MyST `project.references` and write
 `[Array](xref:numpy#numpy.ndarray)` or the role
-`` {autolink}`~numpy.ndarray` ``. Local API definitions take precedence over
+`` {autolink}`~numpy.ndarray` `` with `api.externalReferences` configured.
+Local API definitions take precedence over
 external matches. Missing or ambiguous targets fail the build. See
 [configuration](reference.md) for inventory options and caching.
 

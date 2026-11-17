@@ -11,3 +11,8 @@ playwright-report/
 SHA256SUMS
 .autodoc-test/
 .autodoc-check-*/
+
+# MyST compiler output and generated plugin configuration
+.astro-myst.generated.yml
+_build/
+__pycache__/

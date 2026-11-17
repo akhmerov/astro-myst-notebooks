@@ -58,9 +58,12 @@ export async function pack({ root = process.cwd(), destination = root } = {}) {
     // Consumers use the built files; checkout-only build hooks cannot run here.
     delete pkg.scripts;
     delete pkg.devDependencies;
+    delete pkg.workspaces;
     await writeJson(join(stage, 'package.json'), pkg);
-    lock.packages = Object.fromEntries(Object.entries(lock.packages).filter(([path, entry]) => !path || !entry.dev));
+    lock.packages = Object.fromEntries(Object.entries(lock.packages).filter(([path, entry]) =>
+      !path || !entry.dev && !path.startsWith('packages/') && !entry.link));
     delete lock.packages[''].devDependencies;
+    delete lock.packages[''].workspaces;
     await writeJson(join(stage, 'npm-shrinkwrap.json'), lock);
     await writeJson(join(stage, 'dist/DEPENDENCY-PATCHES.json'), patches);
     const result = await npmPack(stage, ['--pack-destination', work]);
