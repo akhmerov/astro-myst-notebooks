@@ -122,7 +122,7 @@ function adaptCitations(tree, references, file) {
     node.children = order.map(label => {
       const entry = bibliography?.data?.[label];
       if (!entry?.html) file.fail(`Missing rendered MyST bibliography entry: ${label}`);
-      return { type: 'block', data: { hName: 'div', hProperties: { id: `cite-${encodeURIComponent(label)}` } },
+      return { type: 'block', data: { hName: 'div', hProperties: { id: `cite-${label}` } },
         children: [{ type: 'html', value: entry.html }] };
     });
   });
@@ -132,6 +132,18 @@ function adaptCitations(tree, references, file) {
     tree.children.push({ type: 'bibliography' });
     adaptCitations(tree, references, file);
   }
+}
+
+function normalizeFootnoteIds() {
+  return tree => {
+    visit(tree, 'element', node => {
+      const id = node.properties?.id;
+      if (typeof id !== 'string' || !/^user-content-fn(?:ref)?-/.test(id)) return;
+      // The MyST HAST handler URL-encodes both ids and fragment links. Browsers
+      // decode the fragment first, so the DOM id must contain the decoded text.
+      try { node.properties.id = decodeURIComponent(id); } catch { /* Keep a literal percent sign. */ }
+    });
+  };
 }
 
 function mapPageUrl(url, node, resolvePageUrl) {
@@ -248,6 +260,7 @@ export async function renderPage(page, { root, base = '/', interactive = true, p
   const processor = unified()
     .use(presentNotebooks, { interactive, presentation })
     .use(remarkRehype, mystRehype)
+    .use(normalizeFootnoteIds)
     .use(rehypeJupyter).use(rehypeKatex).use(rehypeMathErrors)
     .use(rehypeExpressiveCode, {
       themeCssSelector: theme => `[data-theme="${theme.type}"]`, useDarkModeMediaQuery: false,

@@ -10,6 +10,7 @@ import { fromHtml } from 'hast-util-from-html';
 import { visit } from 'unist-util-visit';
 import { renderPage, pagesFromManifest, navigationFromManifest } from '../dist/engine/render.mjs';
 import { hydrateOutput } from '../dist/engine/notebook.mjs';
+import { renderEngine } from './helpers/engine.mjs';
 
 const require = createRequire(import.meta.url);
 const repo = resolve(fileURLToPath(new URL('../', import.meta.url)));
@@ -65,6 +66,24 @@ test('actual MyST citations, tabs, themed disclosures, tight lists, and page lin
   assert.equal(loose.children.flatMap(n => n.children ?? []).filter(n => n.tagName === 'p').length, 2);
   assert.ok(nodes.some(node => node.tagName === 'a' && node.properties.className?.includes('card') && node.properties.href.startsWith('/manual/')));
   assert.ok(nodes.some(node => node.tagName === 'a' && /equation$/.test(node.properties.href ?? '') && node.properties.href.startsWith('/manual/')));
+});
+
+test('browser-decoded citation and footnote fragments select their generated anchors', async () => {
+  const label = 'https://doi.org/10.48550/arxiv.1909.09649';
+  const page = structuredClone(pages.get(''));
+  page.references.cite.data[label] = page.references.cite.data.example;
+  page.references.cite.order = [label];
+  visit(page.mdast, 'cite', node => { node.label = label; });
+  const citation = elements((await render(page)).html);
+  const footnotes = elements(await renderEngine('A note [^1^].\n\n[^1^]: The footnote.\n'));
+  for (const [document, prefix, count] of [[citation, '#cite-', 2], [footnotes, '#user-content-fn', 2]]) {
+    const links = document.filter(node => node.properties.href?.startsWith(prefix));
+    assert.equal(links.length, count);
+    for (const link of links) {
+      const target = decodeURIComponent(link.properties.href.slice(1));
+      assert.ok(document.some(node => node.properties.id === target), `Missing fragment destination ${target}`);
+    }
+  }
 });
 
 test('computed notebook markup retains controls, presentation layers, inline values, and output-only embeds', async () => {
