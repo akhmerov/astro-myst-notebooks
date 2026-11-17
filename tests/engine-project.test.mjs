@@ -109,7 +109,7 @@ test('an interrupted or killed Astro process cannot leave MyST or its native ker
         for (let attempt = 0; attempt < 60; attempt++) {
           const alive = await Promise.all(pids.map(async pid => {
             try { return !/\) Z /.test(await readFile(`/proc/${pid}/stat`, 'utf8')); }
-            catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+            catch (error) { if (['ENOENT', 'ESRCH'].includes(error.code)) return false; throw error; }
           }));
           if (alive.every(value => !value)) return;
           await pause(50);

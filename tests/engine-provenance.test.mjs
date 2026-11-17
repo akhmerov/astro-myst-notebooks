@@ -76,13 +76,13 @@ test('role text maps its authored occurrence without borrowing matching emphasis
 }));
 
 test('authored Python role labels in lists retain exact source without synthetic AST positions',()=>fixture(async root=>{
-  const source='---\ntitle: Authored roles\n---\n\n- {autolink}`sample.module`\n- {autolink}`~sample.short`\n';
+  const source='---\ntitle: Authored roles\n---\n\n- {autolink}`sample.module`\n- {autolink}`~sample.short`\n- {py:func}`sample.cross`\n\n(module-target)=\n## Target\n';
   await writeFile(join(root,'index.md'),source);
   const roles=join(root,'roles.mjs');
-  await writeFile(roles,"export default {name:'Authored role fixture',roles:[{name:'autolink',body:{type:String,required:true},run(data){return [{type:'link',url:'https://example.org/api',children:[{type:'inlineCode',value:data.body.startsWith('~')?data.body.split('.').at(-1):data.body}]}]}}]};");
+  await writeFile(roles,"export default {name:'Authored role fixture',roles:[{name:'autolink',body:{type:String,required:true},run(data){return [{type:'link',url:'https://example.org/api',children:[{type:'inlineCode',value:data.body.startsWith('~')?data.body.split('.').at(-1):data.body}]}]}},{name:'py:func',body:{type:String,required:true},run(data){return [{type:'crossReference',identifier:'module-target',label:'module-target',children:[{type:'inlineCode',value:data.body}]}]}}]};");
   const page=await build(root,['index.md'],[roles]);await finalizeOrigins(page.mdast,{root});
-  const code=nodes(page.mdast,'inlineCode');assert.deepEqual(code.map(node=>node.value),['sample.module','short']);
-  for(const node of code){assert.equal(node.position,undefined);assert.equal(node.data.origin.kind,'exact');assert.equal(node.data.origin.authoredRole,'autolink');assert.equal(node.data.origin.start,source.indexOf(node.value))}
+  const code=nodes(page.mdast,'inlineCode');assert.deepEqual(code.map(node=>node.value),['sample.module','short','sample.cross']);
+  for(const node of code){assert.equal(node.position,undefined);assert.equal(node.data.origin.kind,'exact');assert.equal(node.data.origin.authoredRole,node.value==='sample.cross'?'py:func':'autolink');assert.equal(node.data.origin.start,source.indexOf(node.value))}
   await assertExact(page.mdast,root);
 }));
 

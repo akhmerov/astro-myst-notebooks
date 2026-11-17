@@ -90,9 +90,11 @@ export function attachOrigins(tree, source, path, root, fullSource = source, opt
         if (python) {
           const explicit = /^(.*?)\s*<([^<>]+)>$/.exec(node.value);
           const value = explicit ? explicit[1].trim() : node.value.startsWith('~') ? node.value.split('.').at(-1) : node.value;
-          if (value && node.value.indexOf(value) === node.value.lastIndexOf(value)) lexical.push({ type: 'inlineCode', value,
-            start: bodyStart + node.value.indexOf(value), end: bodyStart + node.value.indexOf(value) + value.length,
-            context: [...context, 'link'].join('/'), role: node.name });
+          if (value && node.value.indexOf(value) === node.value.lastIndexOf(value)) {
+            for (const kind of ['link', 'crossReference']) lexical.push({ type: 'inlineCode', value,
+              start: bodyStart + node.value.indexOf(value), end: bodyStart + node.value.indexOf(value) + value.length,
+              context: [...context, kind].join('/'), role: node.name });
+          }
         } else if (roleKinds[node.name]) {
           const explicit = node.name === 'download' && /^(.*?)\s*<([^<>]+)>$/.exec(node.value);
           const value = explicit ? explicit[1].trim() : node.value;
