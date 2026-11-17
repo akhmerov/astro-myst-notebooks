@@ -20,13 +20,22 @@ test('MyST engine output becomes Starlight HTML with executed cells and working 
   const html = await read('_build/html/index.html');
   assert.match(html, /<jupyter-notebook>/);
   assert.match(html, /The triangular number is 21/);
+  const text = [];
+  visit(fromHtml(html), 'text', node => text.push(node.value));
+  assert.ok(text.join('').includes('The computed value in prose is 21.'));
   assert.match(html, /class="expressive-code"/);
   assert.ok(html.includes(`href="${prefix}/second#triangle"`));
   assert.match(await read('_build/html/second/index.html'), /id="triangle"[\s\S]*class="katex/);
+  assert.match(await read('_build/html/second/index.html'), /The triangular number is 21/);
   assert.match(await read('_build/html/notebook/index.html'), /<pre>42\n<\/pre>/);
   assert.doesNotMatch(await read('_build/html/notebook/index.html'), /stale saved output/);
   const xrefs = JSON.parse(await read('_build/html/myst.xref.json'));
   assert.ok(xrefs.references.every(ref => !ref.data?.startsWith('/content/')));
+  for (const path of new Set(xrefs.references.map(ref => ref.data).filter(Boolean))) {
+    await read(`_build/html${path}`);
+  }
+  const computed = JSON.parse(await read('_build/html/index.json'));
+  assert.ok(JSON.stringify(computed.mdast).includes('The triangular number is 21'));
   const assets = JSON.parse(await read('_build/site/public.json'));
   for (const path of assets) await read(`_build/html${path}`);
 });
@@ -71,12 +80,22 @@ test('autodoc HTML and typed inventory agree without invented Markdown origins',
   assert.ok(generated > 0);
 });
 
+test('precomputed rich bundles and published assets reach the existing MIME renderer', async () => {
+  const html = await read('_build/html/rich/index.html');
+  assert.match(html, /<strong>Rich HTML output<\/strong>/);
+  assert.match(html, /<strong>Rich Markdown output<\/strong>/);
+  assert.match(html, /class="katex/);
+  assert.match(html, /src="data:image\/png;base64,iVBOR/);
+  assert.match(html, /data-plotly=/);
+  assert.match(html, /Structured Plotly output/);
+});
+
 test('renderer rejects unsupported nodes instead of silently dropping content', async () => {
   const page = { location: '/index.md', frontmatter: {}, mdast: { type: 'root', children: [{ type: 'widget' }] } };
   await assert.rejects(renderPage(page, { root }), /does not render MyST node: widget/);
 });
 
-test('real MyST builds reject missing targets, API directives, inline eval, conflicting tags, and filtered includes', async () => {
+test('real MyST builds reject missing targets, API directives, uncomputed eval, conflicting tags, and filtered includes', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'astro-myst-theme-'));
   // Resolve the repository CLI independently of the temporary project.
   const launcher = fileURLToPath(new URL('../build.mjs', import.meta.url));
@@ -85,7 +104,7 @@ test('real MyST builds reject missing targets, API directives, inline eval, conf
     for (const [source, error] of [
       ['# Invalid\n\nSee [](#missing-equation).', /missing-equation/],
       ['# Invalid\n\n```{autodoc} example.calculate\n```', /autodoc/],
-      ['# Invalid\n\n{eval}`1 + 1`', /does not yet support inline eval/],
+      ['# Invalid\n\n{eval}`1 + 1`', /Inline expression has no computed output/],
       ['# Invalid\n\n```{code-cell} python\n:tags: [hide-input, remove-input]\n\nprint(1)\n```', /Conflicting presentation tags/],
       ['# Invalid\n\n```{include} included.md\n:start-line: 1\n```', /does not support filtered includes/],
     ]) {

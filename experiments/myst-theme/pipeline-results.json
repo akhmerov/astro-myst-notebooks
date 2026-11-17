@@ -1,0 +1,93 @@
+{
+  "myst": "1.11.0",
+  "date": "2026-10-13",
+  "probes": [
+    {
+      "name": "tabs",
+      "baselineRendered": true,
+      "driverComputed": true,
+      "customRendered": false,
+      "error": "Experimental theme does not render MyST node: tabSet",
+      "wordContainsContent": false,
+      "wordText": "Tabs",
+      "resolvedNodeTypes": [
+        "block",
+        "paragraph",
+        "root",
+        "tabItem",
+        "tabSet",
+        "text"
+      ]
+    },
+    {
+      "name": "citations",
+      "baselineRendered": true,
+      "driverComputed": true,
+      "customRendered": false,
+      "error": "Experimental theme does not render MyST node: citeGroup",
+      "wordContainsContent": true,
+      "wordText": "CitationsSee (Example, 2026).ReferencesExample, A. (2026). Example work.",
+      "resolvedNodeTypes": [
+        "block",
+        "cite",
+        "citeGroup",
+        "paragraph",
+        "root",
+        "text"
+      ]
+    },
+    {
+      "name": "filtered include, provenance off",
+      "exit": 0,
+      "filteredIncludesRejected": false
+    },
+    {
+      "name": "filtered include, provenance on",
+      "exit": 1,
+      "filteredIncludesRejected": true
+    },
+    {
+      "name": "grouped table of contents",
+      "driverComputed": true,
+      "driverPages": [
+        {
+          "level": 1,
+          "title": "Guide"
+        },
+        {
+          "slug": "first",
+          "title": "First",
+          "description": "",
+          "date": "",
+          "thumbnail": "",
+          "thumbnailOptimized": "",
+          "banner": "",
+          "bannerOptimized": "",
+          "tags": [],
+          "level": 2
+        },
+        {
+          "slug": "second",
+          "title": "Second",
+          "description": "",
+          "date": "",
+          "thumbnail": "",
+          "thumbnailOptimized": "",
+          "banner": "",
+          "bannerOptimized": "",
+          "tags": [],
+          "level": 2
+        }
+      ],
+      "themeError": "The experimental theme requires a flat table of contents"
+    },
+    {
+      "name": "external MyST reference",
+      "driverResolved": true,
+      "resolvedUrl": "/",
+      "remoteBaseUrlPresent": true,
+      "renderedHref": "/#shared-target",
+      "themeLinksToPublisher": false
+    }
+  ]
+}

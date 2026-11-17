@@ -788,7 +788,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/psutil?source=compressed-mapping
+  - pkg:pypi/psutil?source=hash-mapping
   run_exports: {}
   size: 228664
   timestamp: 1788189989243
@@ -872,7 +872,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/rpds-py?source=compressed-mapping
+  - pkg:pypi/rpds-py?source=hash-mapping
   run_exports: {}
   size: 300095
   timestamp: 1788577298075
@@ -1456,7 +1456,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/build?source=compressed-mapping
+  - pkg:pypi/build?source=hash-mapping
   run_exports: {}
   size: 33461
   timestamp: 1787910624806
@@ -1610,7 +1610,7 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/wcwidth?source=compressed-mapping
+  - pkg:pypi/wcwidth?source=hash-mapping
   run_exports: {}
   size: 146490
   timestamp: 1788174996551

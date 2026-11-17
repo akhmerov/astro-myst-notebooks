@@ -64,7 +64,9 @@ export default {
     stage: 'document',
     plugin: () => async (tree, file) => {
       visit(tree, node => {
-        if (node.type === 'inlineExpression') throw new Error('The experimental theme does not yet support inline eval');
+        if (node.type === 'inlineExpression' && process.env.MYST_THEME_EXECUTION === 'render') {
+          throw new Error('Render-stage execution does not support inline eval');
+        }
         if (node.type === 'block' && node.kind === 'notebook-code') {
           const tags = node.data?.tags ?? [];
           resolvePresentation({}, {}, tags); // Reject conflicting policies before MyST consumes the tags.

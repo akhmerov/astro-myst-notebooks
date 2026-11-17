@@ -9,6 +9,7 @@ import { mystRehype, rehypeDocumentBase, rehypeMathErrors } from '../../../dist/
 import { remarkJupyter } from '../../../dist/jupyter.mjs';
 import { rehypeJupyter } from '../../../dist/mime.mjs';
 import rehypeExpressiveCode from 'rehype-expressive-code';
+import { hydrateOutput, presentNotebooks } from './notebook.mjs';
 
 const supported = new Set([
   'root', 'block', 'paragraph', 'heading', 'text', 'emphasis', 'strong', 'delete',
@@ -17,6 +18,7 @@ const supported = new Set([
   'admonition', 'admonitionTitle', 'container', 'caption', 'captionNumber',
   'table', 'tableRow', 'tableCell', 'definitionList', 'definitionTerm',
   'definitionDescription', 'subscript', 'superscript', 'abbreviation',
+  'outputs', 'output', 'inlineExpression',
 ]);
 
 export async function fetchJson(path) {
@@ -36,7 +38,8 @@ export function pagesFromManifest(manifest) {
   })];
 }
 
-export async function renderPage(page, { root, base = '/', interactive = true } = {}) {
+export async function renderPage(page, { root, base = '/', interactive = true,
+  execution = process.env.MYST_THEME_EXECUTION ?? 'document' } = {}) {
   const tree = structuredClone(page.mdast);
   const file = new VFile({ path: resolve(root, page.location.replace(/^\//, '')),
     data: { astro: { frontmatter: page.frontmatter } } });
@@ -47,6 +50,10 @@ export async function renderPage(page, { root, base = '/', interactive = true } 
       node.url = `${node.url ?? ''}#${node.html_id ?? node.identifier}`;
     }
     if (node.type === 'include') node.type = 'block';
+    if (node.type === 'embed') {
+      if (!node.children?.length) file.fail('MyST embed has no resolved content');
+      node.type = 'block';
+    }
     // The HTML adapter uses identifier for some targets (notably headings).
     // MyST has already resolved the actual HTML anchor, which may differ.
     if (node.html_id && node.type !== 'link') node.identifier = node.html_id;
@@ -61,14 +68,25 @@ export async function renderPage(page, { root, base = '/', interactive = true } 
         if (visibility && visibility !== 'show' && !tags.includes(`${visibility}-${part}`)) tags.push(`${visibility}-${part}`);
       }
       node.data = { ...node.data, tags };
-      // Like the existing Astro integration, native outputs are freshly
-      // executed with nbclient, including for .ipynb input. Do not execute MyST
-      // with --execute as well: that would run the same code twice.
-      node.children = node.children.filter(child => child.type !== 'outputs');
+      if (execution === 'render') node.children = node.children.filter(child => child.type !== 'outputs');
     }
     if (node.type === 'code' && ['python3', 'ipython3', 'pycon'].includes(node.lang)) node.lang = 'python';
     if (!supported.has(node.type)) file.fail(`Experimental theme does not render MyST node: ${node.type}`);
   });
+  if (execution !== 'render') {
+    const outputs = [];
+    visit(tree, 'output', node => outputs.push(node));
+    for (const node of outputs) node.jupyter_data = await hydrateOutput(node.jupyter_data, async path => {
+      const response = await fetch(new URL(path, process.env.CONTENT_CDN));
+      if (!response.ok) throw new Error(`Unable to fetch MyST output: ${path}`);
+      return response;
+    });
+    visit(tree, 'inlineExpression', node => {
+      if (!node.result || !node.children?.length) file.fail(`Inline expression has no computed output: ${node.value}`);
+      node.type = 'span';
+      node.data = { hName: 'span', hProperties: { className: ['jupyter-inline'], dataSourceGenerated: 'true' } };
+    });
+  }
   const headings = [];
   visit(tree, 'heading', node => {
     const words = [];
@@ -76,7 +94,7 @@ export async function renderPage(page, { root, base = '/', interactive = true } 
     headings.push({ depth: node.depth, slug: node.html_id ?? node.identifier, text: words.join('') });
   });
   const processor = unified()
-    .use(remarkJupyter, { cwd: root, timeout: 30, interactive })
+    .use(execution === 'render' ? remarkJupyter : presentNotebooks, { cwd: root, timeout: 30, interactive })
     .use(remarkRehype, mystRehype)
     .use(rehypeJupyter).use(rehypeKatex).use(rehypeMathErrors)
     .use(rehypeExpressiveCode, {

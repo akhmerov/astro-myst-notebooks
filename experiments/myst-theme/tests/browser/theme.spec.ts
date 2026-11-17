@@ -15,6 +15,7 @@ test('MyST references and exact included-source selections survive Starlight ren
   await page.goto('./');
   await expect(page.locator('h1')).toHaveText('MyST with Astro');
   await expect(page.locator('.jupyter-outputs')).toContainText('The triangular number is 21');
+  await expect(page.locator('.sl-markdown-content')).toContainText('The computed value in prose is 21.');
   const selection = await page.locator('[data-source-location]').filter({ hasText: /^An included sentence/ }).evaluate(element => {
     const range = document.createRange();
     range.selectNodeContents(element);
@@ -25,8 +26,22 @@ test('MyST references and exact included-source selections survive Starlight ren
   await page.getByRole('link', { name: 'the equation', exact: true }).click();
   await expect(page.locator('#triangle .katex')).toBeVisible();
   await expect(page.locator('h1')).toHaveText('A second page');
+  await expect(page.locator('.jupyter-outputs')).toContainText('The triangular number is 21');
+  await expect(page.locator('.jupyter-cell')).toHaveCount(0);
   await page.getByRole('link', { name: 'the notebook', exact: true }).click();
   await expect(page.locator('h1')).toHaveText('MyST with Astro');
+});
+
+test('precomputed rich output paints math, the published image, and a Plotly trace', async ({ page }) => {
+  await page.goto('rich/');
+  await expect(page.locator('.jupyter-output strong').first()).toHaveText('Rich HTML output');
+  await expect(page.locator('.jupyter-output .katex')).toBeVisible();
+  await expect(page.locator('.jupyter-output img')).toBeVisible();
+  expect(await page.locator('.jupyter-output img').evaluate(image => (image as HTMLImageElement).naturalWidth)).toBe(1);
+  await expect(page.locator('.jupyter-plotly .scatterlayer .trace .js-line')).toBeVisible();
+  const size = await page.locator('.jupyter-plotly').boundingBox();
+  expect(size?.width).toBeGreaterThan(100);
+  expect(size?.height).toBe(420);
 });
 
 test('real browser Python activates without executing, reruns edits, and terminates a busy kernel', async ({ page }) => {

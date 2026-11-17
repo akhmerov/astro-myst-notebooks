@@ -73,6 +73,7 @@
     "myst:build": "npm run build && node experiments/myst-theme/build.mjs",
     "myst:test": "npm run myst:build && node --test experiments/myst-theme/tests/*.test.mjs",
     "myst:browser": "playwright test --config experiments/myst-theme/playwright.config.ts",
+    "myst:compare": "npm run build && node experiments/myst-theme/compare-execution.mjs",
     "autodoc:test": "node --test packages/myst-autodoc/tests/*.test.mjs"
   },
   "dependencies": {
@@ -161,7 +162,8 @@
     "plotly.js-dist-min": "^4.1.0",
     "esbuild": "^0.28.2",
     "mystmd": "1.11.0",
-    "rehype-expressive-code": "^0.44.2"
+    "rehype-expressive-code": "^0.44.2",
+    "yaml": "^2.9.1"
   },
   "allowScripts": {
     "esbuild@0.28.2": true,
