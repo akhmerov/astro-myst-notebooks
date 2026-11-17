@@ -89,8 +89,10 @@ export default function notebooks(options: Options = {}): AstroIntegration {
             server.middlewares.use(async (request, response, next) => {
               if (request.method !== 'GET' && request.method !== 'HEAD') return next();
               const pathname = request.url?.split('?', 1)[0];
-              if (!pathname?.startsWith(`${prefix}/`)) return next();
-              const file = project.publicAssets.get(pathname.slice(prefix.length));
+              if (!pathname) return next();
+              // Astro's dev middleware validates and strips the deployment base
+              // before forwarding the request to Vite plugins.
+              const file = project.publicAssets.get(pathname);
               if (!file) return next();
               try {
                 const bytes = await readFile(file);
