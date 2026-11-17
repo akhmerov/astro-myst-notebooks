@@ -350,12 +350,18 @@ try {
     ...(values['declare-dynamic-properties']?{plugins:['project/pymablock-dynamic-properties.mjs']}:{})}},null,2));
   report.navigation={sections,additionalPages:additional};
   await mkdir(join(consumer,'src'));
+  await mkdir(join(consumer,'public'));
+  await cp(join(sourceDocs,'favicon.png'),join(consumer,'public/favicon.png'));
+  const originalFavicon=digest(await readFile(join(sourceDocs,'favicon.png'))),copiedFavicon=digest(await readFile(join(consumer,'public/favicon.png')));
+  assert.equal(copiedFavicon,originalFavicon,'Consumer favicon must preserve original Pymablock branding bytes');
+  report.branding={favicon:{source:'docs/source/favicon.png',destination:'public/favicon.png',sha256:copiedFavicon,byteIdentical:true}};
+  report.adaptations.push({kind:'Original Sphinx favicon ported to Astro public assets and configured explicitly',...report.branding.favicon});
   await writeFile(join(consumer,'package.json'),JSON.stringify({name:'pymablock-packed-migration-consumer',type:'module',private:true,
     dependencies:{'astro-myst-notebooks':'file:'+archiveSnapshot,astro:'7.3.2','@astrojs/starlight':'0.42.0'}},null,2));
   const installed = await run('install','npm',['install','--ignore-scripts','--no-audit','--no-fund'],{timeout:180000});
   if (!installed.passed) throw new Error('Packed consumer install failed: '+installed.log);
   await writeFile(join(consumer,'src/content.config.ts'),`import {notebookCollections} from 'astro-myst-notebooks/starlight/content';\nexport const collections=notebookCollections();\n`);
-  await writeFile(join(consumer,'astro.config.mjs'),`import {defineConfig} from 'astro/config';\nimport starlight from '@astrojs/starlight';\nimport notebooks from 'astro-myst-notebooks/starlight';\nexport default defineConfig({base:'/manual/',integrations:[starlight({title:'Pymablock packed migration',sidebar:${JSON.stringify(sidebar)},plugins:[notebooks({myst:{source:new URL('./project/docs/source/',import.meta.url),buildTimeout:${Number(values['build-timeout'])}},execution:{python:${JSON.stringify(python)},cwd:new URL('./project/',import.meta.url),timeout:${Number(values.timeout)},concurrency:1},api:{modules:${JSON.stringify(apiModules)},searchPaths:[new URL('./project/',import.meta.url)],python:${JSON.stringify(apiPython)},parser:'numpy',markup:'rst',docstringWarnings:'warn',documents:${JSON.stringify({'../second_quantization':'/second_quantization/'})},externalReferences:${JSON.stringify(externalReferences)}},interactive:false})]})]});\n`);
+  await writeFile(join(consumer,'astro.config.mjs'),`import {defineConfig} from 'astro/config';\nimport starlight from '@astrojs/starlight';\nimport notebooks from 'astro-myst-notebooks/starlight';\nexport default defineConfig({base:'/manual/',integrations:[starlight({title:'Pymablock packed migration',favicon:'/favicon.png',sidebar:${JSON.stringify(sidebar)},plugins:[notebooks({myst:{source:new URL('./project/docs/source/',import.meta.url),buildTimeout:${Number(values['build-timeout'])}},execution:{python:${JSON.stringify(python)},cwd:new URL('./project/',import.meta.url),timeout:${Number(values.timeout)},concurrency:1},api:{modules:${JSON.stringify(apiModules)},searchPaths:[new URL('./project/',import.meta.url)],python:${JSON.stringify(apiPython)},parser:'numpy',markup:'rst',docstringWarnings:'warn',documents:${JSON.stringify({'../second_quantization':'/second_quantization/'})},externalReferences:${JSON.stringify(externalReferences)}},interactive:false})]})]});\n`);
   const apiDiagnostics = await run('api-diagnostics',apiPython,[join(consumer,'node_modules/astro-myst-notebooks/dist/engine/autodoc/extract.py')],{
     input:JSON.stringify({modules:apiModules,searchPaths:[project],parser:'numpy',markup:'rst',docstringWarnings:'warn',documents:report.apiDocuments}),timeout:60000,
   });
