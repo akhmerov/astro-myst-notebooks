@@ -169,6 +169,11 @@ metadata is separate and remains in every rendered page. The shared notebook
 JavaScript has a 20 MB deployment budget, checked when testing the archive.
 The consumer's Python environment and rendered outputs add to its total site size.
 
+Keep the overridden sanitizer and CSV parser versions exact, and pin the direct
+KaTeX dependency used by the `rehype-katex` override. Ranged overrides can make
+`npm ci` resolve newer versions and reject the committed lockfile. Update these
+pins and the lockfile together; KaTeX rendering and styles must use the same version.
+
 The tested MyST dependency graph is bundled into the npm archive. This carries
 patched transitive versions and matching dependency declarations to consumers,
 where npm would otherwise ignore our root overrides. The small manifest
