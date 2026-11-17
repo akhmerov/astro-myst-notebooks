@@ -2,3 +2,4 @@
 export { mystLoader as sourceLoader } from './engine/loader.js';
 export type { EngineLoaderOptions as SourceLoaderOptions } from './engine/loader.js';
 export { notebookToMyst } from './notebook-source.mjs';
+export { navigationFromManifest } from './engine/render.mjs';

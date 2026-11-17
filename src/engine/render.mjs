@@ -27,7 +27,7 @@ const supported = new Set([
   'outputs', 'output', 'span', 'resolvedCitation',
   'tabSet', 'tabItem', 'grid', 'grid-item', 'card', 'cardTitle', 'header', 'footer',
   'glossary', 'mermaid', 'iframe', 'keyboard', 'footnoteDefinition', 'footnoteReference',
-  'details', 'summary', 'margin',
+  'details', 'summary',
 ]);
 const headingText = node => {
   const words = [];
@@ -146,11 +146,14 @@ function normalizeFootnoteIds() {
   };
 }
 
-function mapPageUrl(url, node, resolvePageUrl) {
-  if (!url || !resolvePageUrl || /^[a-z][a-z0-9+.-]*:|^\/\//i.test(url)) return url;
+function mapPageUrl(url, node, resolvePageUrl, file, isPublicAsset) {
+  if (!url || /^[a-z][a-z0-9+.-]*:|^\/\//i.test(url)) return url;
   const [, path, suffix = ''] = /^([^?#]*)([?#].*)?$/.exec(url);
   if (!path) return url; // An authored fragment belongs to the current page.
-  const mapped = resolvePageUrl(path, node);
+  const mapped = resolvePageUrl?.(path, node);
+  if (mapped === undefined && /\.(md|ipynb)$/i.test(path) && !isPublicAsset?.(path)) {
+    file?.fail(`Unresolved local MyST document link: ${url}`, node.position);
+  }
   return mapped === undefined ? url : mapped + suffix;
 }
 
@@ -182,7 +185,7 @@ async function restoreListSpacing(tree, { root, path }) {
       visit(lexical, ['list', 'listItem'], item => { items.set(`${item.type}:${item.position.start.line}`, item.spread); });
       cache.set(sourcePath, items);
     }
-    const line = node.position?.start?.line ?? node.data?.origin?.position?.start?.line;
+    const line = node.data?.origin?.position?.start?.line ?? node.position?.start?.line;
     const spread = items.get(`${node.type}:${line}`);
     if (typeof spread === 'boolean') node.spread = spread;
   }
@@ -193,7 +196,7 @@ async function restoreListSpacing(tree, { root, path }) {
  * @param {any} options Consumer root, presentation, route and asset adapters.
  */
 export async function renderPage(page, { root, base = '/', interactive = true, presentation = {},
-  frontmatter, readAsset, fetchAsset, resolvePageUrl, stripTitle = true } = {}) {
+  frontmatter, readAsset, fetchAsset, resolvePageUrl, isPublicAsset, stripTitle = true } = {}) {
   if (!page?.mdast || page.mdast.type !== 'root') throw new Error('MyST page has no resolved root tree');
   if (!root) throw new Error('MyST rendering requires a source project root');
   const tree = structuredClone(page.mdast);
@@ -214,7 +217,7 @@ export async function renderPage(page, { root, base = '/', interactive = true, p
       node.type = 'link';
       node.url = referenceUrl(node, resolvePageUrl);
     }
-    if (node.type === 'link' || node.type === 'card') node.url = mapPageUrl(node.url, node, resolvePageUrl);
+    if (node.type === 'link' || node.type === 'card') node.url = mapPageUrl(node.url, node, resolvePageUrl, file, isPublicAsset);
     if (node.type === 'include' || node.type === 'embed') {
       if (!node.children?.length) file.fail(`MyST ${node.type} has no resolved content`);
       node.type = 'block';

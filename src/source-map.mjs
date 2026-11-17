@@ -44,12 +44,17 @@ export function attachOrigins(tree, source, path, root, fullSource = source, opt
     position: { start: point(base + start), end: point(base + end) },
   });
   const lexical = [];
-  const collect = (text, offset = 0) => {
+  const inlineKinds = new Set(['emphasis', 'strong', 'delete', 'link', 'crossReference', 'subscript', 'superscript', 'underline', 'smallcaps', 'span', 'abbreviation', 'keyboard', 'pythonReference']);
+  const contextKind = type => type === 'linkReference' ? 'link' : inlineKinds.has(type) ? type : null;
+  const collect = (text, offset = 0, context = [], role) => {
     const ast = fromMarkdown(text, { extensions: [gfm(), math()], mdastExtensions: [gfmFromMarkdown(), mathFromMarkdown()] });
-    visit(ast, node => {
+    function walk(node, context) {
       if (['text', 'inlineCode'].includes(node.type) && node.position) lexical.push({ type: node.type, value: node.value,
-        start: offset + node.position.start.offset, end: offset + node.position.end.offset });
-    });
+        start: offset + node.position.start.offset, end: offset + node.position.end.offset, context: context.join('/'), role });
+      const kind = contextKind(node.type);
+      for (const child of node.children ?? []) walk(child, kind ? [...context, kind] : context);
+    }
+    walk(ast, context);
   };
   collect(source);
   // The public MyST tokenizer retains directive body starts before expansion.
@@ -62,8 +67,46 @@ export function attachOrigins(tree, source, path, root, fullSource = source, opt
     bodies.set(`${node.position.start.line}:${node.name}`, { start, value: body.value });
     if (source.slice(start, start + body.value.length) === body.value) collect(body.value, start);
   });
+  const roleKinds = { sub: 'subscript', subscript: 'subscript', sup: 'superscript', superscript: 'superscript',
+    underline: 'underline', u: 'underline', smallcaps: 'smallcaps', sc: 'smallcaps', span: 'span', download: 'link' };
+  const roleFields = new Set();
+  function roleEntries(node, context = []) {
+    if (node.type === 'mystRole' && node.position) {
+      // MyST role columns are local to an inline block (e.g. after a list
+      // marker). CommonMark's code-span offsets retain actual source columns.
+      const header = `{${node.name}}`;
+      const fields = lexical.filter(entry => !entry.role && entry.type === 'inlineCode' && entry.context === context.join('/') &&
+        entry.start >= starts[node.position.start.line - 1] && entry.end <= (starts[node.position.end.line] ?? source.length) &&
+        source.slice(entry.start - header.length, entry.start) === header);
+      for (const field of fields) {
+        const key = `${node.name}:${field.start}`;
+        if (roleFields.has(key)) continue;
+        const syntax = source.slice(field.start, field.end);
+        const ticks = /^`+/.exec(syntax)?.[0];
+        if (!ticks || !syntax.endsWith(ticks) || syntax.slice(ticks.length, -ticks.length) !== node.value) continue;
+        roleFields.add(key);
+        const bodyStart = field.start + ticks.length;
+        const python = node.name === 'autolink' || node.name.startsWith('py:');
+        if (python) {
+          const explicit = /^(.*?)\s*<([^<>]+)>$/.exec(node.value);
+          const value = explicit ? explicit[1].trim() : node.value.startsWith('~') ? node.value.split('.').at(-1) : node.value;
+          if (value && node.value.indexOf(value) === node.value.lastIndexOf(value)) lexical.push({ type: 'inlineCode', value,
+            start: bodyStart + node.value.indexOf(value), end: bodyStart + node.value.indexOf(value) + value.length,
+            context: [...context, 'link'].join('/'), role: node.name });
+        } else if (roleKinds[node.name]) {
+          const explicit = node.name === 'download' && /^(.*?)\s*<([^<>]+)>$/.exec(node.value);
+          const value = explicit ? explicit[1].trim() : node.value;
+          collect(value, bodyStart + node.value.indexOf(value), [...context, roleKinds[node.name]], node.name);
+        }
+      }
+      return;
+    }
+    const kind = contextKind(node.type);
+    for (const child of node.children ?? []) roleEntries(child, kind ? [...context, kind] : context);
+  }
+  roleEntries(raw);
   const used = new Set();
-  function walk(node, bounds = { start: 0, end: source.length }, directiveBody) {
+  function walk(node, bounds = { start: 0, end: source.length }, directiveBody, context = []) {
     if (node.position && !['text', 'emphasis', 'strong', 'link', 'inlineCode'].includes(node.type)) {
       bounds = { start: starts[node.position.start.line - 1] ?? bounds.start,
         // Some MyST-generated definition terms report an end line before the
@@ -74,7 +117,7 @@ export function attachOrigins(tree, source, path, root, fullSource = source, opt
     if (node.type === 'mystDirective') directiveBody = bodies.get(`${node.position?.start.line}:${node.name}`);
     let mapped = origin(bounds.start, bounds.end);
     if (node.type === 'text' || node.type === 'inlineCode') {
-      const candidates = lexical.filter(entry => !used.has(entry) && entry.type === node.type && (entry.value === node.value || options.restoreTypography && authoredTextEquivalent(entry.value, node.value)) && entry.start >= bounds.start && entry.end <= bounds.end);
+      const candidates = lexical.filter(entry => !used.has(entry) && entry.type === node.type && entry.context === context.join('/') && (entry.value === node.value || options.restoreTypography && authoredTextEquivalent(entry.value, node.value)) && entry.start >= bounds.start && entry.end <= bounds.end);
       if (candidates.length === 1) {
         const entry = candidates[0]; used.add(entry);
         if (options.restoreTypography) node.value = entry.value;
@@ -83,6 +126,7 @@ export function attachOrigins(tree, source, path, root, fullSource = source, opt
           const start = entry.start + raw.indexOf(node.value);
           mapped = origin(start, start + node.value.length, 'exact');
         } else mapped = origin(entry.start, entry.end, raw === node.value ? 'exact' : 'range');
+        if (entry.role) mapped.authoredRole = entry.role;
       }
     }
     if (node.type === 'code' && node.executable && directiveBody) {
@@ -99,7 +143,8 @@ export function attachOrigins(tree, source, path, root, fullSource = source, opt
       mapped = { ...origin(start, lines.at(-1).end - base), lines };
     }
     node.data = { ...node.data, origin: mapped };
-    for (const child of node.children ?? []) walk(child, bounds, directiveBody);
+    const kind = contextKind(node.type);
+    for (const child of node.children ?? []) walk(child, bounds, directiveBody, kind ? [...context, kind] : context);
   }
   walk(tree);
 }

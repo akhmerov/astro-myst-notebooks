@@ -15,6 +15,8 @@ const asPath = value => value instanceof URL ? fileURLToPath(value) : value;
 const adapterVersion = digest(readFileSync(new URL('../execute.py', import.meta.url)));
 const pools = new Map();
 
+export const isExecutionDependencyFile = name => name.endsWith('.py') || environmentFiles.has(basename(name));
+
 /** Read authored page metadata; MyST does not pass resolved settings to plugins. */
 export async function readPageMetadata(filePath) {
   const source = await readFile(filePath, 'utf8');
@@ -208,6 +210,3 @@ export function createDocumentExecution({ root = process.cwd(), python = 'python
     } }],
   };
 }
-
-const configuration = process.env.ASTRO_MYST_EXECUTION_CONFIG;
-export default createDocumentExecution(configuration ? JSON.parse(readFileSync(configuration, 'utf8')) : {});

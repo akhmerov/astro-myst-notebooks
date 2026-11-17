@@ -115,20 +115,21 @@ for(const name of (await readdir(join(site,'content'))).filter(name=>name.endsWi
   pages.push(result);
 }
 const sum=key=>pages.reduce((n,page)=>n+(key(page)??0),0);
-const legacyMapped=sum(page=>(page.legacy?.own.exactCharacters??0)+(page.legacy?.own.rangeCharacters??0));
+const compared=page=>Boolean(page.comparison)&&!page.baselineError;
+const legacyMapped=sum(page=>compared(page)?page.legacy.own.exactCharacters+page.legacy.own.rangeCharacters:0);
 const report={
   project,sourceRoot:root,site,created:new Date().toISOString(),versions:{engineMystmd:mystPackage.version,legacyMystParser:parserPackage.version,lexicalBaselineRevision:baselineRevision},
   contract:{offsets:'UTF-16 code units in actual Markdown, or notebookToMyst text with representation:myst',
     denominator:'Legacy parseDocument own-page text and inlineCode characters carrying authored origins; excludes included-file contributions and declared generated nodes. Unmapped and unclassified characters are reported separately, never treated as authored coverage.',
     rangeProof:'Literal ranges must contain their rendered text. Declared transformation:markdown and transformation:csv ranges additionally pass finalizeOrigins lexical validation and remain inexact; CSV fields are decoded from the authored enclosing directive. The published JSON must already equal its finalized form.',
-    baselineScope:'Legacy parseDocument/loadSource lexical baseline. It does not expand includes or resolve the whole project. Engine included-file contributions are reported separately; exact source intervals are deduplicated for a second coverage measure.',
+    baselineScope:'Legacy parseDocument/loadSource lexical baseline. It does not expand includes or resolve the whole project. Engine included-file contributions are reported separately; exact source intervals are deduplicated for a second coverage measure. Aggregate comparisons include only pages with a successful lexical baseline on both sides; baseline failures mark the comparison incomplete and fail the script.',
     ...(baselinePrefix?{baselinePrefix,baselineExclusions:'Pages outside the selected authored source prefix remain subject to all origin validation but are excluded from the authored lexical denominator.'}:{}),
     acceptance:'All validation failures fail the script. No coverage floor is assumed; differences are reported for review. --require-no-regression additionally requires no decrease in per-page unique exact authored source characters.'},
-  totals:{pages:pages.length,baselinePages:pages.filter(page=>page.baselineClassification.included).length,baselineExcludedPages:pages.filter(page=>!page.baselineClassification.included).length,validationFailures:sum(page=>page.validation.failures.length),baselineFailures:pages.filter(page=>page.baselineError).length,
+  totals:{pages:pages.length,baselinePages:pages.filter(page=>page.baselineClassification.included).length,baselineSuccessfulPages:pages.filter(compared).length,baselineComplete:!pages.some(page=>page.baselineError),baselineExcludedPages:pages.filter(page=>!page.baselineClassification.included).length,validationFailures:sum(page=>page.validation.failures.length),baselineFailures:pages.filter(page=>page.baselineError).length,
     origins:sum(page=>page.validation.origins),exactValues:sum(page=>page.validation.exactValues),rangeValues:sum(page=>page.validation.rangeValues),codeLines:sum(page=>page.validation.codeLines),declaredMarkdownRanges:sum(page=>page.validation.declaredMarkdownRanges),declaredCsvRanges:sum(page=>page.validation.declaredCsvRanges),
-    legacyMappedProseCharacters:legacyMapped,legacyExactCharacters:sum(page=>page.legacy?.own.exactCharacters),engineExactCharacters:sum(page=>page.baselineClassification.included?page.engine.own.exactCharacters:0),
-    legacyExactOverLegacyMapped:legacyMapped?sum(page=>page.legacy?.own.exactCharacters)/legacyMapped:null,engineExactOverLegacyMapped:legacyMapped?sum(page=>page.baselineClassification.included?page.engine.own.exactCharacters:0)/legacyMapped:null,
-    legacyUniqueExactSourceCharacters:sum(page=>page.legacy?.own.uniqueExactSourceCharacters),engineUniqueExactSourceCharacters:sum(page=>page.baselineClassification.included?page.engine.own.uniqueExactSourceCharacters:0),
+    legacyMappedProseCharacters:legacyMapped,legacyExactCharacters:sum(page=>compared(page)?page.legacy.own.exactCharacters:0),engineExactCharacters:sum(page=>compared(page)?page.engine.own.exactCharacters:0),
+    legacyExactOverLegacyMapped:legacyMapped?sum(page=>compared(page)?page.legacy.own.exactCharacters:0)/legacyMapped:null,engineExactOverLegacyMapped:legacyMapped?sum(page=>compared(page)?page.engine.own.exactCharacters:0)/legacyMapped:null,
+    legacyUniqueExactSourceCharacters:sum(page=>compared(page)?page.legacy.own.uniqueExactSourceCharacters:0),engineUniqueExactSourceCharacters:sum(page=>compared(page)?page.engine.own.uniqueExactSourceCharacters:0),
     engineUnmappedPositionedCharacters:sum(page=>page.engine.own.unmappedPositionedCharacters),engineUnclassifiedCharacters:sum(page=>page.engine.own.unclassifiedCharacters)},
   pages,
 };

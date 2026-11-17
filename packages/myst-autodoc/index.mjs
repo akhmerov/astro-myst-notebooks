@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { loadPythonInventory } from './references.mjs';
@@ -16,8 +17,10 @@ function walk(node, fn) {
 
 /** A MyST plugin factory. Python extraction is lazy, static, and cached per build. */
 export function createAutodoc({ modules, searchPaths = ['.'], python = 'python',
-  parser = 'numpy', markup = 'myst', externalReferences = {}, documents = {}, docstringWarnings = 'error' } = {}) {
+  parser = 'numpy', markup = 'myst', externalReferences = {}, documents = {}, docstringWarnings = 'error',
+  timeout = 30000, model: suppliedModel, modelFile } = {}) {
   if (!Array.isArray(modules) || !modules.length) throw new Error('autodoc requires modules');
+  if (!Number.isFinite(timeout) || timeout <= 0) throw new Error('autodoc timeout must be positive milliseconds');
   const config = { modules, searchPaths: searchPaths.map(path => resolve(path)), parser, markup, documents, docstringWarnings };
   let objects;
   const byName = new Map();
@@ -25,13 +28,18 @@ export function createAutodoc({ modules, searchPaths = ['.'], python = 'python',
   const inventories = new Map();
   function load() {
     if (objects) return;
-    const result = spawnSync(python, [fileURLToPath(new URL('./extract.py', import.meta.url))], {
-      input: JSON.stringify(config), encoding: 'utf8', maxBuffer: 32 * 1024 * 1024,
-    });
-    if (result.error) throw new Error(`autodoc could not launch ${python}: ${result.error.message}`);
-    if (result.status !== 0) throw new Error(result.stderr.trim() || 'autodoc extraction failed');
-    const model = JSON.parse(result.stdout);
-    if (model.version !== 1) throw new Error('Unsupported autodoc model version');
+    let model = suppliedModel ?? (modelFile && JSON.parse(readFileSync(modelFile, 'utf8')));
+    if (!model) {
+      const result = spawnSync(python, [fileURLToPath(new URL('./extract.py', import.meta.url))], {
+        input: JSON.stringify(config), encoding: 'utf8', maxBuffer: 32 * 1024 * 1024,
+        timeout, killSignal: 'SIGKILL',
+      });
+      if (result.error?.code === 'ETIMEDOUT') throw new Error(`autodoc extraction deadline exceeded (${timeout} ms)`);
+      if (result.error) throw new Error(`autodoc could not launch ${python}: ${result.error.message}`);
+      if (result.status !== 0) throw new Error(result.stderr.trim() || 'autodoc extraction failed');
+      model = JSON.parse(result.stdout);
+    }
+    if (model.version !== 1 || !model.objects || typeof model.objects !== 'object') throw new Error('Unsupported autodoc model version');
     for (const diagnostic of model.diagnostics ?? []) console.warn(`autodoc: ${diagnostic.message}`);
     objects = model.objects;
     for (const obj of Object.values(objects)) for (const name of obj.aliases) {

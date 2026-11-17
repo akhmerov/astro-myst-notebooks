@@ -17,11 +17,17 @@ export const mystRehype = {
     allowDangerousHtml: true,
     handlers: {
       text: sourceText,
-      block: (h, node) => h(node, 'div', { className: ['block'], dataBlock: node.meta }, all(h, node)),
+      block: (h, node) => h(node, 'div', { className: ['block'], dataBlock: node.meta, id: node.html_id ?? node.identifier }, all(h, node)),
       // The default MyST handlers emit `class`, which duplicates the HAST
       // `className` supplied above; browsers then discard the themed classes.
       admonition: (h, node) => h(node, 'aside', all(h, node)),
       admonitionTitle: (h, node) => h(node, 'p', all(h, node)),
+      details: (h, node) => h(node, 'details', {
+        id: node.html_id ?? node.identifier,
+        className: node.class?.split(/\s+/).filter(Boolean),
+        open: node.open,
+      }, all(h, node)),
+      summary: (h, node) => h(node, 'summary', all(h, node)),
       tabSet: (h, node) => {
         const id = `tabs-${++tabSets}`;
         const items = node.children.filter(child => child.type === 'tabItem');

@@ -68,16 +68,19 @@ export async function hydrateOutput(bundle, fetchAsset) {
   if (!bundle || typeof bundle !== 'object') throw new Error('MyST output has no Jupyter data');
   const output = structuredClone(bundle);
   if (output.data) for (const [mime, value] of Object.entries(output.data)) {
+    const type = mime.split(';', 1)[0].trim().toLowerCase();
+    const json = type === 'application/json' || (type.startsWith('application/') && type.endsWith('+json'));
+    const textual = json || type.startsWith('text/') || type === 'image/svg+xml'
+      || ['application/javascript', 'application/ecmascript', 'application/xml'].includes(type) || type.endsWith('+xml');
     if (value && typeof value === 'object' && ('content' in value || 'path' in value || 'hash' in value)) {
       let content = value.content;
       if (value.path) {
         if (!fetchAsset) throw new Error(`No asset reader supplied for MyST output: ${value.path}`);
         const response = await fetchAsset(value.path);
-        content = mime.startsWith('image/') && mime !== 'image/svg+xml'
-          ? Buffer.from(await response.arrayBuffer()).toString('base64') : await response.text();
+        content = textual ? await response.text() : Buffer.from(await response.arrayBuffer()).toString('base64');
       }
       if (content === undefined) throw new Error(`MyST output has no published content: ${mime}`);
-      output.data[mime] = mime.startsWith('application/') && mime !== 'application/javascript' ? JSON.parse(content) : content;
+      output.data[mime] = json ? JSON.parse(content) : content;
     }
   }
   if (output.path && ['stream', 'error'].includes(output.output_type)) {

@@ -219,6 +219,43 @@ site:
     assert.ok(!nodes(bases).some(node => node.url?.includes('unavailable_library') || node.url?.startsWith('http')));
   });
 
+  await t.test('third-party pythonObject v1 metadata exports typed names using MyST-generated anchors', async () => {
+    const consumer = join(directory, 'metadata-consumer');
+    await mkdir(consumer);
+    const extension = join(consumer, 'extension.mjs');
+    const pluginSource = `export default { name: 'declared Python target', transforms: [{ name: 'declare target', stage: 'document', plugin: () => tree => {
+      tree.children.push({ type: 'block', data: { autodocGenerated: true }, children: [{
+        type: 'heading', depth: 2, identifier: 'extension.Widget.dynamic', label: 'extension.Widget.dynamic',
+        children: [{ type: 'inlineCode', value: 'extension.Widget.dynamic' }],
+        data: { pythonObject: { version: 1, name: 'extension.Widget.dynamic', canonical: 'extension.Widget.dynamic',
+          kind: 'property', aliases: ['extension.Widget.dynamic', 'extension.dynamic'] } },
+      }] });
+    } }] };\n`;
+    await writeFile(extension, pluginSource);
+    await writeFile(join(consumer, 'myst.yml'), 'version: 1\nproject:\n  plugins: [extension.mjs]\n  toc:\n    - file: index.md\nsite:\n  template: book-theme\n');
+    const source = '# Generated targets\n\n[Dynamic property](#extension.Widget.dynamic).\n';
+    await writeFile(join(consumer, 'index.md'), source);
+    await run(process.execPath, [cli, 'build'], consumer);
+    const page = JSON.parse(await readFile(join(consumer, '_build/site/content/index.json'), 'utf8'));
+    const target = nodes(page.mdast).find(node => node.data?.pythonObject);
+    assert.ok(target.html_id, 'MyST must generate the published target anchor');
+    assert.ok(nodes(page.mdast).some(node => node.type === 'crossReference' && node.resolved && node.identifier === target.identifier));
+    const inventory = new Inventory({ path: join(consumer, '_build/site/objects.inv') });
+    await inventory.load();
+    assert.equal(inventory.data['py:property']['extension.Widget.dynamic'].location, `#${target.html_id}`);
+    assert.equal(inventory.data['py:property']['extension.dynamic'].location, `#${target.html_id}`);
+
+    // Metadata augments inventories; it does not add external objects to the
+    // Griffe model consulted by this plugin's typed Python role resolver.
+    await writeFile(join(consumer, 'autodoc.mjs'), "import {createAutodoc} from '../package/index.mjs';\nexport default createAutodoc({modules:['sample_api'],searchPaths:['../python']});\n");
+    await writeFile(join(consumer, 'myst.yml'), 'version: 1\nproject:\n  plugins: [extension.mjs, autodoc.mjs]\n  toc:\n    - file: index.md\nsite:\n  template: book-theme\n');
+    await writeFile(join(consumer, 'index.md'), source + '\n{py:attr}`extension.Widget.dynamic`.\n');
+    assert.match(await run(process.execPath, [cli, 'build'], consumer, { fails: true }), /Unresolved Python reference: extension.Widget.dynamic/);
+    await writeFile(join(consumer, 'index.md'), source);
+    await writeFile(extension, pluginSource.replace('version: 1', 'version: 2'));
+    assert.match(await run(process.execPath, [cli, 'build'], consumer, { fails: true }), /Unsupported Python object metadata/);
+  });
+
   await t.test('RST docstrings resolve local names and an external Sphinx inventory', async () => {
     const source = join(directory, 'python/sample_api/_impl.py');
     await writeFile(source, (await readFile(source, 'utf8'))

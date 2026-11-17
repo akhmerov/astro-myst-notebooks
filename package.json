@@ -46,8 +46,7 @@
       "types": "./dist/engine/loader.d.ts",
       "import": "./dist/engine/loader.js"
     },
-    "./engine/provenance": "./dist/engine/provenance.mjs",
-    "./engine/execution": "./dist/engine/execution.mjs"
+    "./engine/provenance": "./dist/engine/provenance.mjs"
   },
   "scripts": {
     "build": "node scripts/clean.mjs && tsc && node scripts/copy-assets.mjs && node scripts/build-browser.mjs",

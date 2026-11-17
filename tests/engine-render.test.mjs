@@ -86,6 +86,16 @@ test('browser-decoded citation and footnote fragments select their generated anc
   }
 });
 
+test('the MyST dropdown preserves its title and rich body inside a native disclosure', async () => {
+  const html = await renderEngine(':::{dropdown} Open the derivation\n:open:\n\nA **complete** explanation.\n:::\n');
+  const disclosure = elements(html).find(node => node.tagName === 'details');
+  assert.ok(disclosure);
+  assert.equal(disclosure.properties.open, true);
+  assert.equal(disclosure.children[0].tagName, 'summary');
+  assert.equal(text(disclosure.children[0]), 'Open the derivation');
+  assert.match(text(disclosure), /A complete explanation\./);
+});
+
 test('computed notebook markup retains controls, presentation layers, inline values, and output-only embeds', async () => {
   const { html } = await render(pages.get(''), { presentation: { stderr: 'remove' }, frontmatter: { presentation: { input: 'hide' } } });
   const nodes = elements(html);

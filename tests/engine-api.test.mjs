@@ -4,6 +4,9 @@ import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { prepareApi } from '../dist/engine/api.mjs';
+import { createAutodoc } from '../dist/engine/autodoc/index.mjs';
+import { mystParse } from 'myst-parser';
+import { VFile } from 'vfile';
 
 async function fixture(callback) {
   const root = await mkdtemp(join(tmpdir(), 'astro-api-tree-'));
@@ -39,6 +42,7 @@ test('API preparation generates stable public routes, module trees and aliases f
   assert.equal(classes[0].slug, 'api/sample_api/PublicClass');
   const content = await readFile(classes[0].file, 'utf8');
   assert.match(content, /:members: \*/);
+  assert.doesNotMatch(content, /^slug:/m, 'routeByFile owns generated routes without unsupported MyST frontmatter');
   assert.equal(result.routeByFile.get(classes[0].file), classes[0].slug);
   assert.equal(result.toc[0].file, result.pages.find(page => page.object === 'sample_api').file);
   assert.equal(result.toc[0].children.length, 3);
@@ -48,6 +52,36 @@ test('API preparation generates stable public routes, module trees and aliases f
   assert.deepEqual(again.pages, result.pages);
   const selected = await prepareApi({ ...options, python: '/missing-execution-python', api: { ...options.api, python: 'python' } });
   assert.equal(selected.pluginOptions.python, 'python', 'an explicit existing static-extraction interpreter is independent of notebook execution');
+}));
+
+test('named and wildcard module members suppress their generated pages and ignore fenced examples', () => fixture(async root => {
+  const options = { root, cache: join(root, '.astro/engine'), api: { modules: ['sample_api'], searchPaths: ['.'] } };
+  const source = join(root, 'guide.md');
+  await writeFile(source, '````markdown\n:::{autodoc} sample_api.calculate\n:::\n````\n\n::::{code-block} markdown\n:::{autodoc} sample_api.PublicClass\n:::\n::::\n');
+  let result = await prepareApi({ ...options, sources: [source] });
+  assert.ok(result.pages.some(page => page.object === 'sample_api.calculate'));
+  assert.ok(result.pages.some(page => page.object === 'sample_api.PublicClass'));
+  await writeFile(source, '::::{admonition} Public API\n:::{autodoc} sample_api\n:members: calculate, PublicClass\n:::\n::::\n');
+  result = await prepareApi({ ...options, sources: [source] });
+  assert.deepEqual(result.pages.map(page => page.object), ['sample_api.constant']);
+  await writeFile(source, '```{autodoc} sample_api\n:members: *\n```\n');
+  result = await prepareApi({ ...options, sources: [source] });
+  assert.deepEqual(result.pages, []);
+}));
+
+test('notebook authored placements ignore code cells and the plugin reuses this build model without Python', () => fixture(async root => {
+  const source = join(root, 'guide.ipynb');
+  await writeFile(source, JSON.stringify({ cells: [
+    { cell_type: 'markdown', source: ':::{autodoc} sample_api.calculate\n:::', metadata: {} },
+    { cell_type: 'code', source: '""":::{autodoc} sample_api.constant\n:::"""', metadata: {} },
+  ], metadata: {} }));
+  const result = await prepareApi({ root, cache: join(root, '.astro/engine'), api: { modules: ['sample_api'], searchPaths: ['.'] }, sources: [source] });
+  assert.ok(!result.pages.some(page => page.object === 'sample_api.calculate'));
+  assert.ok(result.pages.some(page => page.object === 'sample_api.constant'));
+  assert.equal(JSON.parse(await readFile(result.pluginOptions.modelFile, 'utf8')).version, 1);
+  const plugin = createAutodoc({ ...result.pluginOptions, python: '/missing-python-must-not-launch' });
+  const nodes = plugin.directives[0].run({ arg: 'sample_api.calculate', options: {} }, new VFile(), { parseMyst: mystParse });
+  assert.equal(nodes[0].canonical, 'sample_api._impl.calculate');
 }));
 
 test('authored autodoc placements suppress duplicate auto-pages and obsolete generated pages are removed', () => fixture(async root => {

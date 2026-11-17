@@ -48,6 +48,13 @@ These are separate choices; NumPy-style docstrings can contain either markup.
 `__all__` declarations limit public member traversal; separately listed modules
 and objects remain available even when their parent does not export them.
 
+Standalone extraction is lazy and runs once per plugin instance. `timeout`
+bounds that Python subprocess in milliseconds (default `30000`); expiry kills
+the process and fails the build. The JSON output limit is 32 MiB. The Astro
+integration first extracts the page tree, then passes that build's model through
+a generated JSON file to this plugin, avoiding a second extraction. It regenerates
+the model on each document build; it is not a persistent Python-source cache.
+
 Register the plugin:
 
 ```yaml
@@ -135,6 +142,40 @@ missing or ambiguous Python references fail explicitly. Ordinary MyST `xref:`
 links continue to use MyST's own `project.references` configuration and resolver.
 
 ## Scope and validation
+
+### Targets supplied by another plugin
+
+Another MyST plugin can declare a Python target without Griffe. Emit an ordinary
+labelled heading and attach `data.pythonObject` version 1:
+
+```js
+{
+  type: 'heading', depth: 3,
+  identifier: name, label: name,
+  children: [{ type: 'inlineCode', value: name }],
+  data: { pythonObject: {
+    version: 1, name, canonical: name,
+    kind: 'property', aliases: [name],
+  } },
+}
+```
+
+`name` is the displayed public dotted name; `canonical` identifies the underlying
+object. `aliases` lists the names to publish, including the canonical name.
+Supported kinds are `module`, `class`, `function`, `method`, `attribute`,
+`property`, and `data`. Optional `source: { file, line }` describes the Python
+origin. Do not invent Markdown positions for generated content. Enclose it in a
+block with `data: { autodocGenerated: true }` when using the Astro provenance plugin.
+
+MyST assigns the resolved `html_id`; inventory augmentation uses that anchor and
+the resolved page URL. An explicit `html_id` is also accepted. The metadata
+publishes typed Sphinx inventory entries and ordinary MyST targets. Within the
+same build, use standard MyST links such as `[property](#pkg.Widget.dynamic)`.
+This metadata does not register objects in Griffe: this plugin's `{py:attr}` and
+other Python roles resolve its extracted model or configured external inventories.
+Unsupported metadata versions and conflicting inventory names fail explicitly.
+
+### Static extraction limits
 
 The initial implementation supports modules, classes, functions, methods,
 attributes, properties, overload signatures, structured docstring sections,

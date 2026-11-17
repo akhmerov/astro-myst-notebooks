@@ -59,6 +59,9 @@ function codeOrigins(tree, source, path, root, fullSource, sourceOffset) {
   const raw = tokensToMyst(source, createTokenizer({ extensions: { smartquotes: false } }).parse(source, {}));
   const bodies = [];
   visit(raw, 'mystDirective', node => {
+    if (node.name === 'csv-table' && (node.options?.file !== undefined || node.options?.url !== undefined)) {
+      throw new Error(`External CSV table sources (:file: or :url:) are unsupported by the pinned MyST compiler: ${path}`);
+    }
     if (!['code-cell', 'code_cell'].includes(node.name)) return;
     const body = node.children?.find(child => child.type === 'mystDirectiveBody');
     if (body?.position) bodies.push({ start: starts[body.position.start.line - 1], value: body.value });
@@ -96,7 +99,7 @@ async function annotate(tree, path, root, { source, fullSource = source, sourceO
   detach(tree);
   attachOrigins(tree, source, path, root, fullSource, { sourceOffset, restoreTypography: true });
   visit(tree, node => {
-    if (['text', 'inlineCode'].includes(node.type) && !node.position && node.data) delete node.data.origin;
+    if (['text', 'inlineCode'].includes(node.type) && !node.position && node.data && !node.data.origin?.authoredRole) delete node.data.origin;
     // MyST consumes presentation tags later; retain our namespaced contract.
     if (node.type === 'block' && node.kind === 'notebook-code') {
       const tags = node.data?.tags ?? [];
@@ -144,10 +147,18 @@ async function annotateNotebook(tree, path, root) {
       }
       continue;
     }
-    if (!segment) continue;
+    if (!segment) {
+      if (cell.cell_type === 'markdown' && block?.kind === 'notebook-content' && !block.children?.length) {
+        removed.add(block); cursor++; continue;
+      }
+      throw new Error(`Notebook cell ${index} has no canonical source segment: ${path}`);
+    }
     if (!block) throw new Error(`Notebook cell ${index} has no resolved source block: ${path}`);
     if (cell.cell_type === 'code') {
       const code = block.children?.find(child => child.type === 'code' && child.executable);
+      if (!segment.body.trim() && code && !code.value.trim()) {
+        removed.add(block); cursor++; continue;
+      }
       // Notebook cell values retain their original line endings and terminal
       // newline, whereas notebookToMyst normalizes CRLF and removes exactly one
       // terminal newline before placing code inside its fence. Accept only that

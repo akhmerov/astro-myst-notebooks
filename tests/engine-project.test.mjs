@@ -7,6 +7,8 @@ import { pathToFileURL } from 'node:url';
 import { visit } from 'unist-util-visit';
 import { fromHtml } from 'hast-util-from-html';
 import { setTimeout as pause } from 'node:timers/promises';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 import { registerEngine, buildEngine, enginePages, publishEngine } from '../dist/engine/project.mjs';
 import { renderPage } from '../dist/engine/render.mjs';
 
@@ -64,16 +66,61 @@ test('the public compiler resolves includes, glossary, CSV, custom routes and as
 
 test('unresolved semantics and cyclic includes fail the compiler, and invalid deadlines fail before spawning', () => fixture(async (root, engine) => {
   await writeFile(join(root, 'myst.yml'), 'version: 1\nproject:\n  toc:\n    - file: index.md\n');
-  for (const source of ['# Missing\n\nSee {ref}`absent`.\n', '# Unsupported\n\n:::{not-a-real-directive}\nBody\n:::\n', '# Cycle\n\n```{include} index.md\n```\n']) {
+  for (const source of ['# Missing\n\nSee {ref}`absent`.\n', '# Missing page\n\n[missing](absent.md#target)\n', '# Unsupported\n\n:::{not-a-real-directive}\nBody\n:::\n', '# Cycle\n\n```{include} index.md\n```\n']) {
     await writeFile(join(root, 'index.md'), source);
     await assert.rejects(async () => {
       await buildEngine(engine, { force: true });
       for (const { page } of await enginePages(engine)) await render(engine, page);
-    }, /MyST document build failed|Unresolved MyST reference|Unsupported resolved MyST node/);
+    }, /MyST document build failed|Unresolved MyST reference|Unresolved local MyST document link|Unsupported resolved MyST node/);
   }
   engine.options.myst.buildTimeout = 0;
   await assert.rejects(buildEngine(engine, { force: true }), /buildTimeout must be positive/);
 }));
+
+test('an interrupted or killed Astro process cannot leave MyST or its native kernel running',
+  { timeout: 20000, skip: process.platform !== 'linux' }, async () => {
+    for (const signal of ['SIGINT', 'SIGTERM', 'SIGKILL']) await fixture(async (root, engine) => {
+      await writeFile(join(root, 'index.md'), [
+        '# Shutdown', '', '```{code-cell} python', 'import os, ctypes', 'from pathlib import Path',
+        'adapter = os.getppid()',
+        'compiler = Path(f"/proc/{adapter}/stat").read_text().split(") ", 1)[1].split()[1]',
+        'Path("pids").write_text(f"{os.getpid()} {adapter} {compiler}")',
+        'ctypes.CDLL(None).sleep(60)', '```', '',
+      ].join('\n'));
+      const code = `import { registerEngine, buildEngine } from ${JSON.stringify(new URL('../dist/engine/project.mjs', import.meta.url).href)};
+        const root = new URL(${JSON.stringify(pathToFileURL(root + '/').href)});
+        await buildEngine(registerEngine({ root, srcDir: root, cacheDir: new URL('.astro/', root) },
+          { myst: { source: root }, execution: { timeout: 60 } }));`;
+      const astro = spawn(process.execPath, ['--input-type=module', '-e', code], { cwd: root, stdio: ['ignore', 'ignore', 'inherit'] });
+      const exited = once(astro, 'exit');
+      let pids = [];
+      try {
+        for (let attempt = 0; attempt < 100 && !pids.length; attempt++) {
+          if (astro.exitCode !== null) break;
+          try {
+            const contents = await readFile(join(root, 'pids'), 'utf8');
+            if (/^\d+ \d+ \d+$/.test(contents)) pids = contents.split(' ').map(Number);
+          } catch (error) { if (error.code !== 'ENOENT') throw error; }
+          await pause(50);
+        }
+        assert.equal(pids.length, 3, 'the kernel must reach its native call before Astro receives the signal');
+        astro.kill(signal);
+        assert.deepEqual(await exited, [null, signal]);
+        for (let attempt = 0; attempt < 60; attempt++) {
+          const alive = await Promise.all(pids.map(async pid => {
+            try { return !/\) Z /.test(await readFile(`/proc/${pid}/stat`, 'utf8')); }
+            catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+          }));
+          if (alive.every(value => !value)) return;
+          await pause(50);
+        }
+        assert.fail(`Kernel, adapter or CLI survived Astro ${signal}: ${pids.join(', ')}`);
+      } finally {
+        astro.kill('SIGKILL');
+        for (const pid of pids) try { process.kill(pid, 'SIGKILL'); } catch {}
+      }
+    });
+  });
 
 test('the MyST command deadline also terminates a kernel blocked inside a native call', { timeout: 20000 }, () => fixture(async (root, engine) => {
   engine.options.myst.buildTimeout = 5000;

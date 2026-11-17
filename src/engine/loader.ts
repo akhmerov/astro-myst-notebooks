@@ -1,9 +1,10 @@
 import type { Loader } from 'astro/loaders';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
-import { dirname, resolve, relative, extname } from 'node:path';
+import { sep, resolve, relative, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildEngine, enginePages, getEngine } from './project.mjs';
 import { renderPage } from './render.mjs';
+import { isExecutionDependencyFile } from './execution.mjs';
 import { notebookPaths, pageUrl } from '../paths.js';
 
 export interface EngineLoaderOptions { base?: URL; sources?: Record<string, {id: string; title: string}>; documents?: URL; }
@@ -21,6 +22,7 @@ export function mystLoader(options: EngineLoaderOptions = {}): Loader {
     let pending = Promise.resolve();
     const load = async (force = false) => {
       await buildEngine(engine, { force });
+      if (context.watcher && engine.documentInputs.size) context.watcher.add([...engine.documentInputs]);
       const pages = await enginePages(engine);
       const routes = engine.routes;
       const entries = [];
@@ -31,6 +33,7 @@ export function mystLoader(options: EngineLoaderOptions = {}): Loader {
           base: context.config.base, interactive: engine.options.interactive !== false,
           presentation: engine.options.presentation, frontmatter,
           resolvePageUrl: (slug: string) => routes.get(slug) ?? routes.get(slug.replace(/^\/+|\/+$/g, '')),
+          isPublicAsset: (path: string) => engine.publicAssets.has(path.startsWith('/') ? path : '/' + path),
           readAsset: async (path: string) => {
             const candidate = resolve(engine.site, 'public', path.replace(/^\//, ''));
             const root = resolve(engine.site, 'public');
@@ -55,12 +58,16 @@ export function mystLoader(options: EngineLoaderOptions = {}): Loader {
         resolve(engine.root, path instanceof URL ? fileURLToPath(path) : path));
       const apiPaths = engine.options.api?.searchPaths?.map((path: URL | string) =>
         resolve(engine.root, path instanceof URL ? fileURLToPath(path) : path)) ?? [];
-      watcher.add([engine.source, engine.configFile, fileURLToPath(engine.options.execution?.cwd ?? context.config.root), ...inputPaths, ...apiPaths]);
+      const cwd = fileURLToPath(engine.options.execution?.cwd ?? context.config.root);
+      watcher.add([engine.source, engine.configFile, ...(resolve(cwd) === engine.root ? [] : [cwd]), ...inputPaths, ...apiPaths]);
       let timer: ReturnType<typeof setTimeout>;
       const changed = (file: string) => {
-        if (file.includes('/node_modules/') || file.includes('/.pixi/') || file.includes('/_build/') || file.includes('/.astro/') || file.endsWith('.astro-myst.generated.yml')) return;
-        const explicitInput = inputPaths.some((path: string) => resolve(file) === path || resolve(file).startsWith(path + '/'));
-        if (!explicitInput && !['.md','.ipynb','.py','.yml','.yaml','.bib'].includes(extname(file))) return;
+        const absolute = resolve(engine.root, file);
+        const normalized = absolute.split(sep).join('/');
+        if (normalized.includes('/node_modules/') || normalized.includes('/.pixi/') || normalized.includes('/_build/') || normalized.includes('/.astro/') || normalized.endsWith('/.astro-myst.generated.yml')) return;
+        const explicitInput = inputPaths.some((path: string) => absolute === path || absolute.startsWith(path + sep));
+        const configOrDocument = ['.md', '.ipynb', '.yml', '.yaml', '.bib'].includes(extname(file));
+        if (!explicitInput && !engine.documentInputs.has(absolute) && !configOrDocument && !isExecutionDependencyFile(absolute)) return;
         clearTimeout(timer);
         timer = setTimeout(() => { pending = pending.then(() => load(true)).catch(error => context.logger.error(String(error))); }, 100);
       };

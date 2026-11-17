@@ -3,6 +3,9 @@ import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stringify } from 'yaml';
+import { createTokenizer, tokensToMyst } from 'myst-parser';
+import { visit, SKIP } from 'unist-util-visit';
+import { loadSource } from '../notebook-source.mjs';
 
 const moduleName = /^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$/;
 const pathOf = value => value instanceof URL ? fileURLToPath(value) : value;
@@ -11,7 +14,7 @@ const ignored = new Set(['.git', '.astro', '.pixi', '_build', 'dist', 'node_modu
 /** Static extraction uses the consumer's selected Python, never imports the API. */
 export async function extractApi({ modules, searchPaths, python = 'python', parser = 'numpy', markup = 'myst', documents = {}, docstringWarnings = 'error', timeout = 30000 }) {
   if (!Array.isArray(modules) || !modules.length || modules.some(name => typeof name !== 'string' || !moduleName.test(name))) {
-    throw new Error('api.modules must be a nonempty list of Python module names');
+    throw new Error('api.modules must be a nonempty list of dotted Python module or object paths');
   }
   if (!Number.isFinite(timeout) || timeout <= 0) throw new Error('API extraction timeout must be positive milliseconds');
   return new Promise((resolveModel, reject) => {
@@ -59,22 +62,34 @@ export async function prepareApi({ root, cache, api, python = 'python', sources 
   if (api.python !== undefined && (typeof api.python !== 'string' || !api.python)) throw new Error('api.python must name an existing Python interpreter');
   const searchPaths = (api.searchPaths ?? ['.']).map(path => resolve(root, pathOf(path)));
   const pluginOptions = { modules: api.modules, searchPaths, python: api.python ?? python,
-    parser: api.parser ?? 'numpy', markup: api.markup ?? 'myst', externalReferences: api.externalReferences ?? {}, documents: api.documents ?? {}, docstringWarnings: api.docstringWarnings ?? 'error' };
-  const { objects } = await extractApi({ ...pluginOptions, timeout: api.timeout });
+    parser: api.parser ?? 'numpy', markup: api.markup ?? 'myst', externalReferences: api.externalReferences ?? {}, documents: api.documents ?? {}, docstringWarnings: api.docstringWarnings ?? 'error', timeout: api.timeout ?? 30000 };
+  const model = await extractApi(pluginOptions);
+  const { objects } = model;
+  // This snapshot belongs to this build, not a durable source cache. The CLI
+  // plugin consumes it instead of starting a second identical extraction.
   const directory = join(cache, 'api'); await mkdir(directory, { recursive: true });
-  const byName = new Map(Object.values(objects).flatMap(object => object.aliases.map(name => [name, object])));
+  pluginOptions.modelFile = join(cache, 'api-model.json');
+  const modelText = JSON.stringify(model);
+  if (await readFile(pluginOptions.modelFile, 'utf8').catch(() => null) !== modelText) await writeFile(pluginOptions.modelFile, modelText);
+  const byName = new Map(Object.values(objects).flatMap(object => object.aliases.map(name => [name, objects[name] ?? object])));
   const authored = new Set();
   for (const file of sources) {
-    let text = await readFile(file, 'utf8');
-    if (file.endsWith('.ipynb')) {
-      const notebook = JSON.parse(text); text = notebook.cells.filter(cell => cell.cell_type === 'markdown').map(cell => Array.isArray(cell.source) ? cell.source.join('') : cell.source).join('\n');
-    }
-    for (const match of text.matchAll(/(?:`{3,}|:{3,})\{autodoc\}\s+([\w.]+)([^]*?)(?=\n(?:`{3,}|:{3,})|$)/g)) {
-      const object = byName.get(match[1]);
-      if (!object) continue;
+    const source = await loadSource(file);
+    const tree = tokensToMyst(source, createTokenizer().parse(source, {}));
+    visit(tree, node => {
+      // These directive bodies are literal source, even if they contain text
+      // that looks like a nested autodoc directive.
+      if (node.type === 'code' || (node.type === 'mystDirective'
+        && ['code', 'code-block', 'code-cell', 'code_cell', 'raw', 'literalinclude'].includes(node.name))) return SKIP;
+      if (node.type !== 'mystDirective' || node.name !== 'autodoc') return;
+      const object = byName.get(node.args?.trim());
+      if (!object) return;
       authored.add(object.canonical);
-      if (/:members:\s*\*/.test(match[2])) for (const member of object.members) if (objects[member]) authored.add(objects[member].canonical);
-    }
+      const selected = node.options?.members;
+      if (typeof selected !== 'string') return;
+      const members = selected.trim() === '*' ? object.members : selected.split(',').map(name => `${object.name}.${name.trim()}`);
+      for (const member of members) if (object.members.includes(member) && objects[member]) authored.add(objects[member].canonical);
+    });
   }
   const canonical = new Map();
   for (const object of Object.values(objects)) {
@@ -91,7 +106,7 @@ export async function prepareApi({ root, cache, api, python = 'python', sources 
   for (const object of [...canonical.values()].sort((a, b) => a.name.localeCompare(b.name))) {
     const slug = `api/${object.name.replaceAll('.', '/')}`;
     const file = join(directory, `${object.name}.md`);
-    const value = `---\n${stringify({ title: object.name, slug })}---\n\n:::{autodoc} ${object.name}\n${object.kind === 'class' ? ':members: *\n' : ''}:::\n`;
+    const value = `---\n${stringify({ title: object.name })}---\n\n:::{autodoc} ${object.name}\n${object.kind === 'class' ? ':members: *\n' : ''}:::\n`;
     if (await readFile(file, 'utf8').catch(() => null) !== value) await writeFile(file, value);
     const page = { file, slug, title: object.name, object: object.name, kind: object.kind };
     pages.push(page); routeByFile.set(file, slug);
@@ -110,5 +125,6 @@ export async function prepareApi({ root, cache, api, python = 'python', sources 
     if (parent.length) nodes.get(parent.join('.')).children.push(node); else toc.push(node);
   }
   const stripEmpty = nodes => nodes.map(node => node.children.length ? { file: node.file, children: stripEmpty(node.children) } : { file: node.file });
-  return { toc: stripEmpty(toc), routeByFile, pages, pluginOptions, dependencies: await pythonSources(searchPaths) };
+  return { toc: stripEmpty(toc), routeByFile, pages, pluginOptions,
+    diagnostics: model.diagnostics ?? [], dependencies: await pythonSources(searchPaths) };
 }

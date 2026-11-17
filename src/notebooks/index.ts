@@ -16,7 +16,7 @@ import { registerEngine, publishEngine } from '../engine/project.mjs';
 
 export interface Options {
   /** Generic Python API documentation compiled by the MyST autodoc workspace. */
-  api?: { modules: string[]; searchPaths?: (string | URL)[]; python?: string; parser?: string; markup?: string; documents?: Record<string, string>; docstringWarnings?: 'error' | 'warn'; externalReferences?: Record<string, any> };
+  api?: { modules: string[]; searchPaths?: (string | URL)[]; python?: string; timeout?: number; parser?: string; markup?: string; documents?: Record<string, string>; docstringWarnings?: 'error' | 'warn'; externalReferences?: Record<string, any> };
   /** MyST project inputs. Astro owns both build and development commands. */
   myst?: { config?: URL; source?: URL; buildTimeout?: number };
   /** Notebook presentation defaults, overridden by page frontmatter and cell tags. */
@@ -54,7 +54,7 @@ export default function notebooks(options: Options = {}): AstroIntegration {
         const execution = { ...options.execution, cwd: fileURLToPath(options.execution?.cwd ?? config.root) };
         const interactive = options.interactive !== false;
         if (command === 'build' || command === 'dev') await checkEnvironment(execution);
-        const project = registerEngine(config, options);
+        const project = registerEngine(config, options, logger);
         engine = project;
         injectScript('page-ssr', `import ${JSON.stringify(fileURLToPath(new URL('./style.css', import.meta.url)))}; import ${JSON.stringify(require.resolve('katex/dist/katex.min.css'))};`);
         injectScript('page', `import ${JSON.stringify(fileURLToPath(new URL('./source-selection.js', import.meta.url)))};`);

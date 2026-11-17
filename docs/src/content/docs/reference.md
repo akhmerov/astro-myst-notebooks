@@ -171,6 +171,13 @@ content source directory. Choose the directory with integration `myst.source`;
 
 The `/loader` export also provides `notebookToMyst()` to regenerate the MyST text
 representation used for notebook source-map offsets.
+`navigationFromManifest()` reads the resolved MyST manifest and retains its
+group headings and page slugs for navigation tooling. Astro still owns the sidebar.
+
+In development, edits to included files and local document assets rebuild the
+affected site. Document inputs do not invalidate the notebook execution cache
+unless they are also execution inputs, such as imported Python source or files
+listed in `execution.dependencies`.
 
 ## Reference inventories
 
@@ -232,6 +239,9 @@ public Python names for their routes. Public aliases share the documented
 object's target. Class pages include inherited public members and merge
 constructor documentation. Typed Sphinx inventory entries retain Python's
 case-sensitive names.
+
+`api.timeout` sets the deadline for static extraction in milliseconds. It defaults
+to 30,000.
 Class pages also show statically declared bases, linking known local classes.
 Unavailable external bases remain code text. Static extraction cannot discover
 attributes created at runtime or members of an unavailable external base.
