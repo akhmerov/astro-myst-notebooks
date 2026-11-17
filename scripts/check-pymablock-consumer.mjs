@@ -118,6 +118,15 @@ function authoredWords(tree){
   }
   walk(tree);return words;
 }
+function renderedProseWords(tree){
+  const words=new Map(),excludedClasses=new Set(['katex','math','jupyter-output','jupyter-static-output','jupyter-live-output','cell_input','cell_output','output_area','highlight']);
+  function walk(node){
+    if(node.tagName&&(/^(?:h[1-6]|pre|script|style|svg|math|mjx-container)$/.test(node.tagName)||(node.properties?.className??[]).some(name=>excludedClasses.has(name))))return;
+    if(node.type==='text')for(const token of node.value.match(/[\p{L}\p{N}_]+/gu)??[])words.set(token,(words.get(token)??0)+1);
+    for(const child of node.children??[])walk(child);
+  }
+  walk(tree);return words;
+}
 async function files(root) {
   const result = [];
   for (const entry of await readdir(root, { withFileTypes: true })) {
@@ -448,20 +457,31 @@ try {
   report.inventory={previousPublicCount:oldApi.length,currentPublicCount:[...actualSymbols.keys()].filter(key=>key.startsWith('py:')).length,totalInventoryEntries:actualSymbols.size,missingSymbols,invalidTargets:invalidInventoryTargets,changedLocations,
     generic:{checked:genericChecked,invalidTargets:invalidGenericTargets},headings:{checked:headingsChecked,invalidTargets:invalidHeadings}};
   const {parseDocument:parseBaseline}=await import(pathToFileURL(join(repo,'scripts/migration-baseline/parse-document.mjs')).href);
-  const actualWords=new Map();
-  for(const {page}of resolvedPages)for(const [file,counts]of authoredWords(page.mdast)){
-    if(!actualWords.has(file))actualWords.set(file,new Map());const aggregate=actualWords.get(file);
-    for(const [token,count]of counts)aggregate.set(token,(aggregate.get(token)??0)+count);
-  }
   const proseFiles=[...report.sourcePages.map(file=>'docs/source/'+file),'CONTRIBUTING.md','CHANGELOG.md','AUTHORS.md'];
   const proseComparisons=[];
   for(const file of proseFiles){
     const path=join(project,file),tree=parseBaseline(await readFile(path,'utf8'),path,project).tree;
-    const expected=authoredWords(tree).get(file)??new Map(),actual=actualWords.get(file)??new Map();
+    const sourcePage=file.startsWith('docs/source/')?file.slice('docs/source/'.length):({'CONTRIBUTING.md':'developer.md','CHANGELOG.md':'CHANGELOG.md','AUTHORS.md':'authors.md'})[file];
+    const route='/manual/'+sourcePage.replace(/\.md$/,'').replace(/^index$/,'')+(sourcePage==='index.md'?'':'/');
+    const body=parsedPages.find(page=>page.route===route)?.nodes.find(node=>(node.properties.className??[]).includes('sl-markdown-content'));
+    assert.ok(body,'Missing rendered Markdown body for '+file);
+    const expected=authoredWords(tree).get(file)??new Map(),actual=renderedProseWords(body);
     const missing=[...expected].filter(([token,count])=>(actual.get(token)??0)<count).map(([token,count])=>({token,expected:count,actual:actual.get(token)??0}));
-    proseComparisons.push({file,expectedWords:[...expected.values()].reduce((sum,count)=>sum+count,0),missing});
+    const oldHtml=join(source,'docs/build/html',sourcePage.replace(/\.md$/,'.html'));
+    let previousSphinx;
+    try{
+      const oldTree=fromHtml(await readFile(oldHtml,'utf8'));let article;visit(oldTree,'element',node=>{if(node.tagName==='article'&&(node.properties.className??[]).includes('bd-article'))article=node;});
+      if(article){
+        const oldWords=renderedProseWords(article),missingOld=[...expected].filter(([token,count])=>(oldWords.get(token)??0)<count).map(([token,count])=>({token,expected:count,actual:oldWords.get(token)??0}));
+        let snapshotMatchesOriginal=null;
+        try{const snapshot=await readFile(join(source,'docs/build/html/_sources',sourcePage+'.txt'));snapshotMatchesOriginal=file.startsWith('docs/source/')?digest(snapshot)===report.sourceDigests[sourcePage]:null;}catch{}
+        previousSphinx={html:oldHtml,sourceSnapshotMatchesOriginal:snapshotMatchesOriginal,sourceWordsMissingFromOldHtml:missingOld,
+          limitation:'Rendered paragraph/inline-code sample only; source adapters add documented controls/API overview text, generated API descriptions moved to new pages, old notebook outputs/math/headings are excluded. A null snapshot match means no independent archived source identity for this included root document.'};
+      }
+    }catch{}
+    proseComparisons.push({file,route,expectedWords:[...expected.values()].reduce((sum,count)=>sum+count,0),missing,previousSphinx});
   }
-  report.sourceContentComparison={validationOnlyHostParser:true,scope:'Unordered Unicode word-count containment for authored paragraph/list/caption text and inline code in all16 adapted source pages and3 included root documents. Headings/navigation, punctuation, layout/order, math, code blocks, generated API prose and notebook outputs are excluded; heading targets, five formula pairs, verbatim scientific cells and execution outputs are checked separately. Source adaptations are recorded verbatim where material.',
+  report.sourceContentComparison={validationOnlyHostParser:true,scope:'Unordered Unicode word-count containment from authored lexical paragraph/list/caption text and inline code in all16 adapted source pages and3 included root documents into actual rendered Markdown HTML. Headings/navigation, punctuation, layout/order, math, fenced code and notebook outputs are excluded; heading targets, five formula pairs, verbatim scientific cells and execution outputs are checked separately. Extra generated HTML may add words, so this detects losses rather than proving semantic equivalence. Existing Sphinx HTML and archived-source identity are reported separately; current copied source remains the acceptance baseline. Source adaptations are recorded verbatim where material.',
     pages:proseComparisons,passed:proseComparisons.every(page=>page.missing.length===0)};
   await recordNativeExecution();
   report.archiveBoundary={installedPackage:join(consumer,'node_modules/astro-myst-notebooks'),checkoutImports:false};
@@ -497,9 +517,8 @@ try {
     let port=Number(values.port);
     if(values.port)assert.ok(Number.isInteger(port)&&port>0&&port<=65535,'--port must be a valid TCP port');
     else{
-      const picker='/home/imp/src/imp_config/scripts/review-port.py';
-      try{await access(picker);const chosen=await run('browser-port','/usr/bin/python3',[picker]);assert.ok(chosen.passed);port=Number(chosen.output.trim());}
-      catch{const listener=createServer();await new Promise(done=>listener.listen(0,'127.0.0.1',done));port=listener.address().port;await new Promise(done=>listener.close(done));}
+      const listener=createServer();await new Promise(done=>listener.listen(0,'127.0.0.1',done));
+      port=listener.address().port;await new Promise(done=>listener.close(done));
       assert.ok(Number.isInteger(port)&&port>0&&port<=65535);
     }
     const consumerRequire = createRequire(join(consumer,'package.json'));

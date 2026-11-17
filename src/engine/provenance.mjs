@@ -148,6 +148,9 @@ async function annotateNotebook(tree, path, root) {
       continue;
     }
     if (!segment) {
+      // MyST extracts a frontmatter-only first Markdown cell without emitting
+      // a content block. Ordinary empty cells do emit one (handled above).
+      if (index === 0 && cell.cell_type === 'markdown' && /^---\r?\n[^]*?\r?\n---\s*$/.test(text(cell.source))) continue;
       if (cell.cell_type === 'markdown' && block?.kind === 'notebook-content' && !block.children?.length) {
         removed.add(block); cursor++; continue;
       }

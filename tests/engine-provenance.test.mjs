@@ -97,6 +97,12 @@ test('empty notebook Markdown and code cells do not shift later authored origins
   for(const value of ['First.','After empty cells.','End.'])assert.ok(nodes(page.mdast,'text').some(node=>node.value===value&&node.data.origin.kind==='exact'));
   assert.ok(!nodes(page.mdast,'block').some(node=>['cell1','cell2','cell3','cell6'].includes(node.identifier)));
   await assertExact(page.mdast,root);
+  notebook.cells.unshift({cell_type:'markdown',source:'---\ntitle: Frontmatter only\n---',metadata:{},id:'frontmatter'},
+    {cell_type:'markdown',source:'',metadata:{},id:'empty-after-frontmatter'});
+  await writeFile(join(root,'index.ipynb'),JSON.stringify(notebook));
+  const frontmatterPage=await build(root,['index.ipynb']);await finalizeOrigins(frontmatterPage.mdast,{root});
+  assert.deepEqual(nodes(frontmatterPage.mdast,'code').filter(node=>node.executable).map(node=>node.value),['print(2)']);
+  await assertExact(frontmatterPage.mdast,root);
 }));
 
 test('filtered include list spacing follows canonical source lines',()=>fixture(async root=>{
