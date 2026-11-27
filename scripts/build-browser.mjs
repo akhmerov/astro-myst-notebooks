@@ -2,7 +2,7 @@ import { build } from 'esbuild';
 import { mkdir, copyFile, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 const require = createRequire(import.meta.url);
 const directory = 'dist/notebooks/browser';
 await rm(directory, { recursive: true, force: true });
@@ -36,6 +36,21 @@ for (const [name, subdir, pattern] of [
   }
 }
 await copyFile(require.resolve('mathjax/es5/tex-svg-full.js'), `${directory}/mathjax-tex-svg.js`);
+// Follow both static and dynamic imports. The notebook element can share
+// chunks with the static client, but only the client's dependencies ship by default.
+const staticFiles = new Set();
+function collectStaticFiles(path) {
+  const name = basename(path);
+  if (staticFiles.has(name)) return;
+  staticFiles.add(name);
+  for (const dependency of result.metafile.outputs[path].imports) {
+    if (!dependency.external) collectStaticFiles(dependency.path);
+  }
+}
+collectStaticFiles(`${directory}/client.js`);
+// Plot label typesetting loads this script by URL outside the bundle graph.
+staticFiles.add('mathjax-tex-svg.js');
+await writeFile(`${directory}/static-files.json`, JSON.stringify([...staticFiles].sort()));
 const runtimeHash = createHash('sha256');
 for (const folder of ['', 'assets/']) {
   for (const name of (await readdir(directory + '/' + folder)).sort()) {

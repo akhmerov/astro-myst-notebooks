@@ -18,10 +18,21 @@ export interface Options {
   /** Generic Python API documentation compiled by the MyST autodoc workspace. */
   api?: { modules: string[]; searchPaths?: (string | URL)[]; python?: string; timeout?: number; parser?: string; markup?: string; documents?: Record<string, string>; docstringWarnings?: 'error' | 'warn'; externalReferences?: Record<string, any> };
   /** MyST project inputs. Astro owns both build and development commands. */
-  myst?: { config?: URL; source?: URL; buildTimeout?: number };
+  myst?: {
+    config?: URL; source?: URL; buildTimeout?: number;
+    /** Set false to retain ordinary DOI links without looking up their metadata. */
+    resolveDoiLinks?: boolean;
+    /** Publish the resolved MyST JSON and cross-reference index. Defaults to true. */
+    publishContent?: boolean;
+    /** Redirect links to repository files and, optionally, directories. */
+    repositoryLinks?: { root: URL; files: string; directories?: string };
+  };
   /** Notebook presentation defaults, overridden by page frontmatter and cell tags. */
   presentation?: PresentationOptions;
+  /** Publish source selection metadata for rendered pages. Defaults to true. */
+  sourceMaps?: boolean;
   execution?: ExecutionOptions;
+  /** Set to an options object to enable browser Python. */
   interactive?: InteractiveOptions | false;
 
 }
@@ -52,21 +63,24 @@ export default function notebooks(options: Options = {}): AstroIntegration {
           updateConfig({ vite: { environments: { ssr: { resolve }, prerender: { resolve } } } });
         }
         const execution = { ...options.execution, cwd: fileURLToPath(options.execution?.cwd ?? config.root) };
-        const interactive = options.interactive !== false;
+        const settings = options.interactive;
         if (command === 'build' || command === 'dev') await checkEnvironment(execution);
         const project = registerEngine(config, options, logger);
         engine = project;
         injectScript('page-ssr', `import ${JSON.stringify(fileURLToPath(new URL('./style.css', import.meta.url)))}; import ${JSON.stringify(require.resolve('katex/dist/katex.min.css'))};`);
-        injectScript('page', `import ${JSON.stringify(fileURLToPath(new URL('./source-selection.js', import.meta.url)))};`);
+        if (options.sourceMaps !== false) injectScript('page', `import ${JSON.stringify(fileURLToPath(new URL('./source-selection.js', import.meta.url)))};`);
         const prefix = sitePrefix(config);
         const runtimeVersion: string = JSON.parse(readFileSync(new URL('./browser/version.json', import.meta.url), 'utf8'));
         const runtimeDestination = `notebooks/${runtimeVersion}`;
         const runtimeBase = `${prefix}/${runtimeDestination}`;
         const runtime = posix(fileURLToPath(new URL('./browser/', import.meta.url)));
-        const targets: CopyTarget[] = [{ src: `${runtime}*.js`, dest: runtimeDestination, rename: { stripBase: true } }];
+        const staticFiles: string[] = JSON.parse(readFileSync(new URL('./browser/static-files.json', import.meta.url), 'utf8'));
+        const targets: CopyTarget[] = [{
+          src: settings ? `${runtime}*.js` : staticFiles.map(file => `${runtime}${file}`),
+          dest: runtimeDestination, rename: { stripBase: true },
+        }];
         injectScript('page', `const runtimeBase = ${JSON.stringify(runtimeBase)}; import(/* @vite-ignore */ runtimeBase + '/client.js');`);
-        if (interactive && (command === 'build' || command === 'dev')) {
-          const settings = options.interactive || {};
+        if (settings && (command === 'build' || command === 'dev')) {
           if ('xeus' in settings || 'packages' in settings) throw new Error('Use interactive.environment for the Xeus environment; Pyodide and interactive.xeus were removed in 0.3');
           const environment = await buildEnvironment(settings, { root: config.root, cache: paths.cache, python: settings.python ?? execution.python, log: message => logger.info(message) });
           const assetVersion = createHash('sha256').update(runtimeVersion + environment.version).digest('hex').slice(0, 20);

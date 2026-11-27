@@ -78,6 +78,24 @@ test('rendered output, Plotly, navigation, and included source selections', asyn
   });
   expect(mapped.complete).toBe(true);
   expect(mapped.ranges[0]?.origin?.file).toBe('docs/src/content/docs/_partials/_provenance.md');
+  expect(mapped.ranges[0]?.origin?.position?.start).toEqual({ line: 1, column: 64, offset: 63 });
+  expect(mapped.ranges[0]?.origin?.position?.end).toEqual({ line: 1, column: 77, offset: 76 });
+  const composed = await page.evaluate(async () => {
+    const html = await (await fetch(new URL('../notebook/', location.href))).text();
+    const second = new DOMParser().parseFromString(html, 'text/html');
+    const span = [...second.querySelectorAll('[data-source-location]')].find(node => node.textContent === 'notebook.ipynb')!;
+    const table = second.querySelector('template[data-myst-source-map]')!;
+    const entry = document.createElement('div');
+    entry.append(span, table);
+    document.body.append(entry);
+    const range = document.createRange();
+    range.selectNodeContents(span);
+    const mapped = window.mystSourceMap.resolve(range);
+    entry.remove();
+    return mapped;
+  });
+  expect(composed.ranges[0]?.origin?.file).toBe('docs/src/content/docs/notebook.ipynb');
+  expect(composed.ranges[0]?.origin?.representation).toBe('myst');
   await page.getByRole('link', { name: 'authoring guide', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Author MyST', exact: true })).toBeVisible();
 });

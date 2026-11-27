@@ -7,7 +7,7 @@ const element = (type, tag, properties, children = []) => ({ type, data: { hName
 // Translate already executed MyST cells into our existing browser runtime's
 // markup. No executor is invoked here; the document compiler has already computed
 // all static outputs before this adapter runs.
-export function presentNotebooks({ interactive = true, presentation = {} } = {}) {
+export function presentNotebooks({ interactive = true, presentation = {}, sourceMaps = true } = {}) {
   return (tree, file) => {
     const metadata = file.data.astro?.frontmatter ?? {};
     const cells = [];
@@ -36,7 +36,7 @@ export function presentNotebooks({ interactive = true, presentation = {} } = {})
         className: ['jupyter-cell'], dataSource: code.value,
         dataCellId: createHash('sha256').update(`${file.path}:${index}:${code.value}`).digest('hex').slice(0, 32),
         dataTags: tags.length ? tags.join(' ') : undefined,
-        dataOrigin: code.data?.origin ? JSON.stringify(code.data.origin) : undefined,
+        dataOrigin: sourceMaps && code.data?.origin ? JSON.stringify(code.data.origin) : undefined,
         dataPresentation: JSON.stringify(policy), hidden: policy.cell === 'remove',
         id: node.html_id ?? node.identifier,
       }, [group('cell', 'Show cell', [group('input', 'Show code', [input]), group('output', 'Show output', [output])])]);

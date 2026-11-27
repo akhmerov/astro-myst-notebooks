@@ -484,6 +484,11 @@ const mapped = window.mystSourceMap.resolve(selection.getRangeAt(0));
 console.log(mapped);
 ```
 
+Use the selection API to decode locations. Each HTML marker stores a file
+index and UTF-16 offsets, and the page shares the file identities and line
+indexes. Set `sourceMaps: false` in `notebooks()` if the site does not use
+source selection.
+
 The result contains selected text, a `complete` coverage flag, and individual
 text ranges. Inspect each range's `origin` before attaching a comment:
 
@@ -501,3 +506,16 @@ Generated text has no authored origin, and transformed or ambiguous text can
 have only a containing range. Comment persistence and relocation across
 revisions belong to the consumer. Browser edits preserve the original document
 provenance rather than inventing offsets for the edited code.
+
+## Inline SVG and trusted HTML
+
+Wrap SVG that uses your site's CSS in a `raw-html` directive. The markup is
+inserted verbatim and must come from a trusted source.
+
+````markdown
+```{raw-html}
+<svg viewBox="0 0 32 32" role="img" aria-label="A circle">
+  <circle cx="16" cy="16" r="12" fill="currentColor"/>
+</svg>
+```
+````

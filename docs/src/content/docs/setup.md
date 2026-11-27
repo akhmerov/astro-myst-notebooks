@@ -15,15 +15,9 @@ initializer, and [Pixi](https://pixi.sh/) to manage Python and the build tools.
 Your project can contain `pixi.toml` or `pyproject.toml`, or start as an empty
 directory. After initialization, its Pixi environment provides Node and Python.
 
-These instructions describe the unpublished `0.5.0-alpha.0` migration. From a
-checkout of this branch, build its compiled archive:
-
-```sh
-pixi run pack
-```
-
-The archive is written to the checkout root. A `0.4.x` release archive uses the
-older pipeline; use the new local archive for the configuration below.
+Download `astro-myst-notebooks-0.5.0-alpha.0.tgz` from the [GitHub prerelease](https://github.com/akhmerov/astro-myst-notebooks/releases/tag/v0.5.0-alpha.0).
+To build the archive from a checkout, run `pixi run pack`. Earlier `0.4.x`
+releases use a different configuration.
 
 ## Create the site
 
@@ -80,10 +74,11 @@ configuration change. Successful cell results are reused when their inputs
 are unchanged. Restart after changing the installed Python environment or the
 integration itself.
 
-The first build prepares browser Python by downloading packages from
-Emscripten-forge. Later builds reuse that environment. On the welcome page,
-**Enable interactivity** starts browser Python; **Run all** executes its cell.
-This is a separate kernel from the one that produced the published output.
+By default, the site publishes Python output from the build. Add `interactive: {}`
+to `notebooks()` in `docs/astro.config.mjs` to enable browser Python. The first
+build with this setting downloads packages from Emscripten-forge. Later builds
+reuse that environment. On the welcome page, **Enable interactivity** starts a
+browser kernel and **Run all** executes the cell.
 
 Add scientific packages for build-time examples to Pixi, for example
 `pixi add --feature docs numpy`. Add their browser equivalents to

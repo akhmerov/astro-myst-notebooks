@@ -3,10 +3,10 @@ title: Browser execution
 description: Declare an Emscripten-forge environment and run examples in a Xeus browser kernel.
 ---
 
-The browser backend is Xeus with packages from Emscripten-forge. The docs build
-prepares the environment and publishes it with the site. Readers download that
-environment when they enable interactivity. Thebe provides editors,
-controls, and Jupyter MIME rendering.
+Set `interactive: {}` in your `notebooks()` options to enable browser execution.
+The build then prepares a Xeus Python environment from Emscripten-forge packages
+and publishes it with the site. Readers download that environment when they
+enable interactivity. Thebe provides editors, controls, and Jupyter MIME rendering.
 
 ## Downloads and caching
 
@@ -63,8 +63,7 @@ interactive: {
 }
 ```
 
-Set `interactive: false` to publish executed output without live notebooks.
-Pyodide is not supported in 0.3.
+Omit `interactive` or set it to `false` to publish build-time output alone.
 
 ## Include your Python package
 

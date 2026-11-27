@@ -1,21 +1,16 @@
 import { readFile } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { visit } from 'unist-util-visit';
 import { createTokenizer, tokensToMyst } from 'myst-parser';
+import { inlineMathSimplificationTransform } from 'myst-transforms';
 import { parse as parseCsv } from 'csv-parse/sync';
-import { attachOrigins, authoredTextEquivalent, authoredTextInRange, markdownRangeContains } from '../source-map.mjs';
+import { attachOrigins, authoredTextEquivalent, authoredTextInRange, lineStarts, markdownRangeContains, sourceSnapshot } from '../source-map.mjs';
 import { notebookSourceMap, loadSource } from '../notebook-source.mjs';
 import { resolvePresentation } from '../presentation.js';
 
 const text = value => Array.isArray(value) ? value.join('') : String(value ?? '');
 const local = value => typeof value === 'string' && value && !/^(\/|#|[a-z][a-z0-9+.-]*:)/i.test(value);
-const point = (source, offset) => {
-  const lines = source.slice(0, offset).split('\n');
-  return { line: lines.length, column: lines.at(-1).length + 1, offset };
-};
-
 /** Filters map a single contiguous source slice, never a concatenated guess. */
 export function includeSourceSlice(source, filter, path = 'include') {
   if (!filter || !Object.keys(filter).length) return { content: source, offset: 0 };
@@ -53,9 +48,9 @@ export function includeSourceSlice(source, filter, path = 'include') {
   return { content, offset };
 }
 
-function codeOrigins(tree, source, path, root, fullSource, sourceOffset) {
-  const starts = [0];
-  for (let i = 0; i < source.length; i++) if (source[i] === '\n') starts.push(i + 1);
+function codeOrigins(tree, source, path, root, snapshot, sourceOffset) {
+  const { source: fullSource, point } = snapshot;
+  const starts = source === fullSource ? snapshot.starts : lineStarts(source);
   const raw = tokensToMyst(source, createTokenizer({ extensions: { smartquotes: false } }).parse(source, {}));
   const bodies = [];
   visit(raw, 'mystDirective', node => {
@@ -74,9 +69,9 @@ function codeOrigins(tree, source, path, root, fullSource, sourceOffset) {
     const start = sourceOffset + body.start + body.value.indexOf(node.value);
     if (fullSource.slice(start, start + node.value.length) !== node.value) throw new Error(`Executable source differs from its authored cell: ${path}`);
     const identity = node.data?.origin ?? { version: 1, file: relative(root, path).replaceAll('\\', '/'),
-      digest: createHash('sha256').update(fullSource).digest('hex'), encoding: 'utf-16', ...(path.endsWith('.ipynb') ? { representation: 'myst' } : {}) };
+      digest: snapshot.digest, encoding: 'utf-16', ...(path.endsWith('.ipynb') ? { representation: 'myst' } : {}) };
     const origin = (start, end) => ({ ...identity, start, end, kind: 'exact',
-      position: { start: point(fullSource, start), end: point(fullSource, end) } });
+      position: { start: point(start), end: point(end) } });
     let offset = start;
     const lines = node.value.split('\n').map(line => {
       const mapped = origin(offset, offset + line.length); offset += line.length + 1; return mapped;
@@ -85,9 +80,10 @@ function codeOrigins(tree, source, path, root, fullSource, sourceOffset) {
   });
 }
 
-async function annotate(tree, path, root, { source, fullSource = source, sourceOffset = 0, includedFrom } = {}) {
+async function annotate(tree, path, root, { source, fullSource = source, sourceOffset = 0, includedFrom, snapshot } = {}) {
   source ??= await loadSource(path);
   fullSource ??= source;
+  snapshot ??= sourceSnapshot(fullSource);
   const detached = [];
   function detach(node) {
     const generated = Boolean(node.data?.autodocGenerated) || ['outputs', 'output', 'captionNumber', 'numbering'].includes(node.type);
@@ -97,9 +93,10 @@ async function annotate(tree, path, root, { source, fullSource = source, sourceO
     } else for (const child of node.children ?? []) detach(child);
   }
   detach(tree);
-  attachOrigins(tree, source, path, root, fullSource, { sourceOffset, restoreTypography: true });
+  attachOrigins(tree, source, path, root, fullSource, { sourceOffset, restoreTypography: true, snapshot });
   visit(tree, node => {
-    if (['text', 'inlineCode'].includes(node.type) && !node.position && node.data && !node.data.origin?.authoredRole) delete node.data.origin;
+    if (['text', 'inlineCode'].includes(node.type) && !node.position && node.data &&
+        !node.data.origin?.authoredRole && node.data.origin?.transformation !== 'markdown') delete node.data.origin;
     // MyST consumes presentation tags later; retain our namespaced contract.
     if (node.type === 'block' && node.kind === 'notebook-code') {
       const tags = node.data?.tags ?? [];
@@ -117,7 +114,7 @@ async function annotate(tree, path, root, { source, fullSource = source, sourceO
       }
     }
   });
-  codeOrigins(tree, source, path, root, fullSource, sourceOffset);
+  codeOrigins(tree, source, path, root, snapshot, sourceOffset);
   for (const { node, children, generated } of detached) {
     node.children = children;
     if (generated) {
@@ -136,10 +133,12 @@ async function annotate(tree, path, root, { source, fullSource = source, sourceO
 async function annotateNotebook(tree, path, root) {
   const notebook = JSON.parse(await readFile(path, 'utf8'));
   const { source: fullSource, segments } = notebookSourceMap(notebook);
+  const byCell = new Map(segments.map(segment => [segment.cell, segment]));
+  const snapshot = sourceSnapshot(fullSource);
   let cursor = 0;
   const removed = new Set();
   for (const [index, cell] of notebook.cells.entries()) {
-    const segment = segments.find(entry => entry.cell === index);
+    const segment = byCell.get(index);
     const block = tree.children[cursor];
     if (cell.cell_type === 'raw') {
       if (block?.children?.some(child => child.type === 'code' && !child.executable && child.value.replace(/\r\n/g, '\n').replace(/\n+$/, '') === text(cell.source).replace(/\r\n/g, '\n').replace(/\n+$/, ''))) {
@@ -169,7 +168,7 @@ async function annotateNotebook(tree, path, root) {
       if (code && typeof code.value === 'string' && code.value.replace(/\r\n/g, '\n').replace(/\n$/, '') === segment.body) code.value = segment.body;
       if (!code || code.value !== segment.body) throw new Error(`Notebook executable cell ${index} cannot be mapped: ${path}`);
       await annotate({ type: 'root', children: [block] }, path, root, {
-        source: segment.part, fullSource, sourceOffset: segment.start,
+        source: segment.part, fullSource, sourceOffset: segment.start, snapshot,
       });
     } else {
       // MyST positions each Markdown cell independently. Position metadata is
@@ -185,7 +184,7 @@ async function annotateNotebook(tree, path, root) {
       });
       try {
         await annotate({ type: 'root', children: [block] }, path, root, {
-          source: segment.body, fullSource, sourceOffset: segment.start,
+          source: segment.body, fullSource, sourceOffset: segment.start, snapshot,
         });
       } finally { for (const [node, position] of positions) node.position = position; }
     }
@@ -231,6 +230,7 @@ function csvDirectives(source) {
     for (const content of [options.header, node.value].filter(value => value !== undefined)) {
       for (const row of parseCsv(content, csvOptions)) rows.push(row.map(field => {
         const lexical = tokensToMyst(field, tokenizer.parse(field, {})), values = [];
+        inlineMathSimplificationTransform(lexical, { replaceSymbol: false });
         visit(lexical, ['text', 'inlineCode'], text => { values.push({ type: text.type, value: text.value }); });
         return values;
       }));
@@ -274,9 +274,8 @@ function csvTableBindings(table, directives, narrow) {
 }
 
 /** Validate the contract after project transformations and before publishing DOM markers. */
-export async function finalizeOrigins(tree, { root = process.cwd() } = {}) {
+export async function finalizeOrigins(tree, { root = process.cwd(), sources = new Map() } = {}) {
   root = resolve(root instanceof URL ? fileURLToPath(root) : root);
-  const sources = new Map();
   const csvSources = new Map();
   const tableText = new Set();
   const tables = [];
@@ -291,8 +290,8 @@ export async function finalizeOrigins(tree, { root = process.cwd() } = {}) {
     const path = resolve(root, [...files][0]);
     if (!tablesByFile.has(path)) tablesByFile.set(path, []);
     tablesByFile.get(path).push(table);
-    if (!sources.has(path)) sources.set(path, await loadSource(path));
-    if (!csvSources.has(path)) csvSources.set(path, csvDirectives(sources.get(path)));
+    if (!sources.has(path)) sources.set(path, sourceSnapshot(await loadSource(path)));
+    if (!csvSources.has(path)) csvSources.set(path, csvDirectives(sources.get(path).source));
   }
   for (const [path, fileTables] of tablesByFile) {
     const lexical = csvSources.get(path);
@@ -311,12 +310,13 @@ export async function finalizeOrigins(tree, { root = process.cwd() } = {}) {
   for (const node of nodes) {
     const origin = node.data.origin;
     const path = resolve(root, origin.file);
-    if (!sources.has(path)) sources.set(path, await loadSource(path));
-    const source = sources.get(path);
+    if (!sources.has(path)) sources.set(path, sourceSnapshot(await loadSource(path)));
+    const snapshot = sources.get(path);
+    const { source, point, digest } = snapshot;
     if (!Number.isInteger(origin.start) || !Number.isInteger(origin.end) || origin.start < 0 || origin.end < origin.start || origin.end > source.length) {
       throw new Error(`Invalid source provenance range: ${origin.file}`);
     }
-    if (origin.digest !== createHash('sha256').update(source).digest('hex')) throw new Error(`Source changed after the MyST document build: ${origin.file}`);
+    if (origin.digest !== digest) throw new Error(`Source changed after the MyST document build: ${origin.file}`);
     if (tableText.has(node)) {
       const csv = csvBindings.get(node);
       if (csv) {
@@ -325,7 +325,7 @@ export async function finalizeOrigins(tree, { root = process.cwd() } = {}) {
         if (ownedExact) {
           if (source.slice(origin.start, origin.end) !== node.value) throw new Error(`Exact CSV source provenance does not match its authored field: ${origin.file}`);
         } else Object.assign(origin, { kind: 'range', transformation: 'csv', start: csv.start, end: csv.end,
-          position: { start: point(source, csv.start), end: point(source, csv.end) } });
+          position: { start: point(csv.start), end: point(csv.end) } });
         continue;
       }
       if (origin.transformation === 'csv') throw new Error(`CSV source provenance does not match a decoded authored field: ${origin.file}`);
@@ -337,12 +337,13 @@ export async function finalizeOrigins(tree, { root = process.cwd() } = {}) {
         node.value = authored;
       }
     }
-    if (['text', 'inlineCode'].includes(node.type) && origin.kind === 'range' && !source.slice(origin.start, origin.end).includes(node.value)) {
-      const authored = authoredTextInRange(node.value, source.slice(origin.start, origin.end));
+    if (['text', 'inlineCode'].includes(node.type) && origin.kind === 'range' &&
+        (origin.transformation === 'markdown' || !source.slice(origin.start, origin.end).includes(node.value))) {
+      const authored = origin.transformation === 'markdown' ? undefined : authoredTextInRange(node.value, source.slice(origin.start, origin.end));
       if (authored !== undefined) node.value = authored;
-      else if (markdownRangeContains(source, node.value, node.type, origin)) {
+      else if (markdownRangeContains(source, node.value, node.type, origin, snapshot)) {
         origin.transformation = 'markdown';
-      } else throw new Error(`Source provenance range does not contain rendered text: ${origin.file}`);
+      } else throw new Error(`Source provenance range does not contain rendered text: ${origin.file}:${point(origin.start).line} (${JSON.stringify(node.value.slice(0, 120))})`);
     }
     const codeLines = typeof node.value === 'string' && node.type === 'code' ? node.value.split('\n') : undefined;
     if (origin.lines && codeLines && origin.lines.length !== codeLines.length) throw new Error(`Code-line source provenance length differs: ${origin.file}`);

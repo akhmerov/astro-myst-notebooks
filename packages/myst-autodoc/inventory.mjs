@@ -12,7 +12,9 @@ export async function augmentInventory({ site = '_build/site', destinations = []
   const relativeUrl = value => {
     if (/^[a-z]+:/i.test(value) || value.startsWith('//')) throw new Error(`Expected a local MyST URL: ${value}`);
     let url = value.replace(/^\/+/, '');
-    if (prefix && (url === prefix || url.startsWith(prefix + '/'))) url = url.slice(prefix.length).replace(/^\/+/, '');
+    if (prefix && value.startsWith('/') && (url === prefix || url.startsWith(prefix + '/'))) {
+      url = url.slice(prefix.length).replace(/^\/+/, '');
+    }
     return url;
   };
   // All entries, including generic document targets, must work below a URL prefix.

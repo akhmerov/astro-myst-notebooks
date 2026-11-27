@@ -1,7 +1,6 @@
 import { mystToHast } from 'myst-to-html';
 import { visit } from 'unist-util-visit';
 import { createRequire } from 'node:module';
-import { sourceText } from '../source-map.mjs';
 
 // myst-to-html renders with its own mdast-util-to-hast major; child rendering
 // must use that version's `all`, not Astro's.
@@ -9,14 +8,14 @@ const { all } = await import(createRequire(import.meta.resolve('myst-to-html')).
 
 // Render the resolved MyST tree; unsupported semantics fail before export.
 // Astro's highlighting, heading collection, and rehype plugins run afterwards.
-export const mystRehype = {
+export const mystRehype = locations => ({
   handlers: { root: (state, tree) => {
     // Deterministic per-page ids for generated controls, stable across builds.
     let tabSets = 0;
-    return mystToHast({
+    const rendered = mystToHast({
     allowDangerousHtml: true,
     handlers: {
-      text: sourceText,
+      text: locations.text,
       block: (h, node) => h(node, 'div', { className: ['block'], dataBlock: node.meta, id: node.html_id ?? node.identifier }, all(h, node)),
       // The default MyST handlers emit `class`, which duplicates the HAST
       // `className` supplied above; browsers then discard the themed classes.
@@ -71,7 +70,7 @@ export const mystRehype = {
         className: node.align ? [`align-${node.align}`] : undefined,
       }, []),
       definitionTerm: (h, node) => h(node, 'dt', { id: node.html_id ?? node.identifier }, all(h, node)),
-      inlineCode: (h, node) => h(node, 'code', [sourceText(h, node)]),
+      inlineCode: (h, node) => h(node, 'code', [locations.text(h, node)]),
       captionNumber: (h, node) => h(node, 'span', { className: ['caption-number'] }, [{ type: 'text', value: node.children?.map(child => child.value ?? '').join('') ?? node.enumerator ?? '' }]),
       // Use standard HAST className arrays so rehype-katex can render the math.
       math: (h, node) => h(node, 'div', { id: node.html_id ?? node.identifier }, [h(node, 'pre', [h(node, 'code', {
@@ -82,8 +81,10 @@ export const mystRehype = {
       ]),
     },
     })(tree);
+    locations.append(rendered);
+    return rendered;
   } },
-};
+});
 
 
 /** Apply Astro's deployment base to authored root-relative links and assets. */

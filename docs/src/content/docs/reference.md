@@ -25,8 +25,9 @@ integration supplies nbclient execution, source provenance, and browser assets.
 | `myst` | Authored MyST configuration, content source directory, and document-build deadline |
 | `execution` | Build-time Jupyter settings and execution cache inputs |
 | `api` | Optional static Python API extraction and generated pages |
-| `interactive` | Browser Python settings; `false` disables live execution site-wide |
+| `interactive` | Set to `{}` or an options object to enable browser Python |
 | `presentation` | Defaults for input, output, cell, stdout, and stderr visibility |
+| `sourceMaps` | Set `false` to omit published source locations and the browser selection API. Defaults to `true`. |
 
 Resolve configuration paths from `astro.config.mjs` with URL objects, for
 example `new URL('../', import.meta.url)`. API search paths accept strings relative
@@ -40,6 +41,9 @@ rendered document links and published assets.
 | `config` | `myst.yml` in the Astro root | Authored MyST project configuration |
 | `source` | `src/content/docs/` | Directory for automatic page discovery |
 | `buildTimeout` | `180000` | Deadline for the MyST document command, in milliseconds |
+| `repositoryLinks` | Unset | Redirect ordinary links to repository files before MyST can copy them into the site |
+| `resolveDoiLinks` | `true` | Set `false` to retain ordinary DOI hyperlinks without looking up their metadata. Explicit citation roles can still resolve DOI metadata. |
+| `publishContent` | `true` | Set `false` to omit the resolved MyST page data and `myst.xref.json` from the site |
 
 The integration supports one MyST project per Astro site. `myst.config` must
 reside in the Astro root so generated configuration preserves relative paths.
@@ -54,6 +58,19 @@ The authored `myst.yml` remains yours. `.astro-myst.generated.yml`, `_build/`,
 and `.astro/` are generated build input, resolved documents, and caches; ignore
 them in Git. Change website appearance and components through Astro/Starlight,
 rather than a MyST HTML template.
+
+Sites that do not need other MyST projects to reference or embed their
+documents can set `myst.publishContent: false`. The Sphinx inventory
+(`objects.inv`) is published independently.
+
+For notes that link to repository code or data, set
+`myst.repositoryLinks` to `{ root, files, directories? }`. Set `root` to the
+repository's file URL and `files` to the URL prefix for files at the desired
+revision. You can also set `directories` to the URL prefix for browsing
+directories. The integration appends the repository-relative path and preserves
+query strings and fragments. Images and explicit download roles keep their
+normal behavior. Links to Markdown and notebooks resolve to their published
+pages, including the pages that include them.
 
 ### Native execution
 
@@ -139,9 +156,9 @@ kernel from Xeus or install a second Python distribution. Set it when the
 JupyterLite tools already live in another Pixi environment. See
 [browser execution](browser.md) for environment caching, mounts, and wheels.
 
-Site-wide `interactive: false` removes live execution. Page frontmatter
-`thebe: false` disables controls only on that page. Top-level page
-`presentation` and `thebe` settings remain supported by the Astro metadata adapter.
+Browser assets are prepared and published only when `interactive` is set to an
+options object. Page frontmatter `thebe: false` disables controls on that page.
+The Astro metadata adapter supports top-level page `presentation` and `thebe` settings.
 
 ## Loader options
 
@@ -185,6 +202,8 @@ A Sphinx inventory (`objects.inv`) lists named objects and the pages that
 document them. MyST's `myst.xref.json` also advertises document targets and
 resolved page data. The integration publishes both, including typed Python
 entries when API extraction is enabled. Locations respect the deployment prefix.
+The Sphinx document names (`std:doc`) use Astro route IDs, such as
+`guide/intro` and `api/mypackage`. The home page uses `index`.
 
 Configure cross-project MyST references in `myst.yml`:
 
@@ -292,8 +311,15 @@ runtime settings, then make these changes:
   `api.parser`, and `api.markup`.
 - Use the ordinary `/starlight` plugin and `notebookCollections()`; remove
   Pydocs middleware, component overrides, and API collections.
+- Add `interactive: {}` if your previous site relied on browser execution
+  being enabled by default.
 - Put MyST project settings in `myst.yml`. Replace loader glob callbacks with
   a MyST table of contents, frontmatter slugs, or explicit source metadata.
+- Declare bibliography files in `project.bibliography` in `myst.yml` for citations
+  shared across pages and included notes.
+- Ordinary Markdown and notebook links must resolve to a published page or a
+  uniquely including page. Use `{download}` to link to unpublished source files
+  or to keep an explicit page-source download.
 - Let the integration publish inventories. The previous Pydocs inventory and
   docstring adapters are not part of the recommended API.
 - Move cross-project links to MyST `project.references` and Python inventory

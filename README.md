@@ -3,17 +3,16 @@
 Write documentation in [MyST Markdown](https://mystmd.org/) or Jupyter
 notebooks, build it with [Astro](https://astro.build/), and publish a
 [Starlight](https://starlight.astro.build/) documentation site. Python cells
-run during the build. Readers can then edit and rerun them in a Python kernel
-inside their browser, without a server behind the published page.
+run during the build. You can also let readers edit and rerun them in a Python
+kernel inside their browser, without a server behind the published page.
 
 Astro owns the website and its configuration. This integration runs MyST's
 document engine to process pages, includes, references, and computed outputs,
 then renders the resolved documents through Astro. Your repository keeps its
 pages, branding, components, and scientific Python dependencies.
 
-**Unpublished alpha:** these instructions describe the `0.5.0-alpha.0`
-migration. Build an archive from this branch to try it. Older `0.4.x` preview
-archives use the previous document pipeline and configuration. The package is
+**Alpha:** these instructions describe [`0.5.0-alpha.0`](https://github.com/akhmerov/astro-myst-notebooks/releases/tag/v0.5.0-alpha.0).
+The alpha changes the document pipeline and configuration from `0.4.x`. The package is
 not published on npm. The [public documentation](https://akhmerov.github.io/astro-myst-notebooks/)
 tracks `main` and may describe a different version.
 
@@ -23,14 +22,9 @@ tracks `main` and may describe a different version.
 
 You need [Node.js](https://nodejs.org/) 22.12 or newer and
 [Pixi](https://pixi.sh/), which manages the Python and build tools.
-First build the package archive from this checkout:
-
-```sh
-pixi run pack
-```
-
-This produces `astro-myst-notebooks-0.5.0-alpha.0.tgz` in the checkout root.
-Then run the following from the root of the project you want to document:
+Download `astro-myst-notebooks-0.5.0-alpha.0.tgz` from the [GitHub prerelease](https://github.com/akhmerov/astro-myst-notebooks/releases/tag/v0.5.0-alpha.0).
+From a checkout, you can also build the archive with `pixi run pack`.
+Run the following from the root of the project you want to document:
 
 ```sh
 archive=/absolute/path/to/astro-myst-notebooks-0.5.0-alpha.0.tgz
@@ -42,8 +36,9 @@ The initializer creates a `docs/` directory with Astro and Starlight
 configuration, `myst.yml`, a welcome page containing a Python cell, and an
 `environment.yml` for browser Python. It adds a Pixi environment named `docs`
 and tasks for development, builds, and preview. The last command starts the
-site at <http://localhost:51300>. Click **Enable interactivity** on the welcome
-page to start browser Python, then **Run all** to execute its cell.
+site at <http://localhost:51300>. The welcome page shows the output from the
+build-time kernel. To let readers run that cell, add `interactive: {}` to the
+`notebooks()` options in `docs/astro.config.mjs`.
 
 Use `--api mypackage` to include Python API documentation, or
 `--dir site --pixi-environment site` to choose different directory and environment

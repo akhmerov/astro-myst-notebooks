@@ -16,7 +16,7 @@ equations, source selections, and rich output.
 
 ## Start with a working page
 
-[Set up a site](setup.md) explains how to build the unpublished alpha archive
+[Set up a site](setup.md) explains how to get the alpha archive
 and initialize a documentation project from it. Then follow the
 [walkthrough](walkthrough.md) and [Author MyST](authoring.md).
 
@@ -44,9 +44,8 @@ invalidate them. See [execution settings](reference.md#native-execution).
 
 ## Project status
 
-This documentation describes the unpublished **0.5.0 alpha migration**. APIs
-and behavior may change. Build a local archive from the migration checkout;
-older `0.4.x` releases do not provide this configuration.
+This documentation describes **0.5.0-alpha.0**. APIs and behavior may change
+before 0.5.0.
 
 MyST owns document semantics; the Astro adapter supports a defined set of
 resolved nodes and fails explicitly when it cannot render one. Source-selection

@@ -14,6 +14,7 @@ import { mystRehype, rehypeDocumentBase, rehypeMathErrors } from './hast.mjs';
 import { rehypeJupyter } from '../mime.mjs';
 import { hydrateOutput, presentNotebooks } from './notebook.mjs';
 import { finalizeOrigins } from './provenance.mjs';
+import { createSourceLocations } from '../source-map.mjs';
 
 // Support is explicit. MyST's generic fallback prints unhandled directives and
 // silently drops some nodes, which is never a successful document conversion.
@@ -196,7 +197,7 @@ async function restoreListSpacing(tree, { root, path }) {
  * @param {any} options Consumer root, presentation, route and asset adapters.
  */
 export async function renderPage(page, { root, base = '/', interactive = true, presentation = {},
-  frontmatter, readAsset, fetchAsset, resolvePageUrl, isPublicAsset, stripTitle = true } = {}) {
+  frontmatter, readAsset, fetchAsset, resolvePageUrl, isPublicAsset, stripTitle = true, sourceMaps = true } = {}) {
   if (!page?.mdast || page.mdast.type !== 'root') throw new Error('MyST page has no resolved root tree');
   if (!root) throw new Error('MyST rendering requires a source project root');
   const tree = structuredClone(page.mdast);
@@ -211,6 +212,7 @@ export async function renderPage(page, { root, base = '/', interactive = true, p
   adaptCitations(tree, page.references, file);
   const inlineOutputs = [];
   visit(tree, node => {
+    if (node.type === 'astroRawHtml') node.type = 'html';
     if (node.type === 'resolvedCitation') { node.type = 'link'; node.data = { ...node.data, hProperties: { className: ['citation'] } }; }
     if (node.type === 'crossReference') {
       if (!node.resolved) file.fail(`Unresolved MyST reference: ${node.identifier}`);
@@ -256,13 +258,14 @@ export async function renderPage(page, { root, base = '/', interactive = true, p
   visit(tree, 'output', node => { outputs.push(node); });
   for (const node of outputs) node.jupyter_data = await hydrateOutput(node.jupyter_data, assetReader);
   for (const node of inlineOutputs) node.data.hProperties.bundle = await hydrateOutput(node.data.hProperties.bundle, assetReader);
-  await finalizeOrigins(tree, { root });
+  const sources = new Map();
+  await finalizeOrigins(tree, { root, sources });
   await restoreListSpacing(tree, { root, path: file.path });
   const headings = [];
   visit(tree, 'heading', node => { headings.push({ depth: node.depth, slug: node.html_id ?? node.identifier, text: headingText(node) }); });
   const processor = unified()
-    .use(presentNotebooks, { interactive, presentation })
-    .use(remarkRehype, mystRehype)
+    .use(presentNotebooks, { interactive, presentation, sourceMaps })
+    .use(remarkRehype, mystRehype(createSourceLocations(root, sources, sourceMaps, file.path)))
     .use(normalizeFootnoteIds)
     .use(rehypeJupyter).use(rehypeKatex).use(rehypeMathErrors)
     .use(rehypeExpressiveCode, {

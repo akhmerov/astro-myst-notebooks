@@ -30,7 +30,8 @@ export function mystLoader(options: EngineLoaderOptions = {}): Loader {
         const override = options.sources?.[relative(engine.source, file)];
         const id = override?.id ?? originalId;
         const rendered = await renderPage({ ...page, location: relative(fileURLToPath(engine.options.execution?.cwd ?? context.config.root), file) }, { root: fileURLToPath(engine.options.execution?.cwd ?? context.config.root),
-          base: context.config.base, interactive: engine.options.interactive !== false,
+          base: context.config.base, interactive: Boolean(engine.options.interactive),
+          sourceMaps: engine.options.sourceMaps !== false,
           presentation: engine.options.presentation, frontmatter,
           resolvePageUrl: (slug: string) => routes.get(slug) ?? routes.get(slug.replace(/^\/+|\/+$/g, '')),
           isPublicAsset: (path: string) => engine.publicAssets.has(path.startsWith('/') ? path : '/' + path),

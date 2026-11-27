@@ -21,6 +21,12 @@ const text = tree => {
   visit(tree, 'text', node => { found.push(node.value); });
   return found.join('');
 };
+const location = (page, span) => {
+  const [id, file, start, end, flag = ''] = span.properties.dataSourceLocation.split(':');
+  const table = elements(page).find(node => node.properties.id === 'myst-source-' + id);
+  const files = JSON.parse(text(table.content));
+  return { ...files[Number(file)], start: Number(start), end: Number(end), kind: flag.includes('r') ? 'range' : 'exact' };
+};
 
 test('the documentation renders real Jupyter results and includes hidden setup', () => {
   const tree = pages.get('walkthrough');
@@ -92,7 +98,7 @@ test('a Jupyter notebook renders and executes like a MyST page', async () => {
   assert.doesNotMatch(text(pages.get('notebook')), /Raw cells are not published/);
   assert.ok(nodes.some(node => node.tagName === 'a' && node.properties.href === `${base}/walkthrough/#triangular-sum`));
   const span = nodes.find(node => node.properties.dataSourceLocation && text(node) === 'notebook.ipynb');
-  const origin = JSON.parse(span.properties.dataSourceLocation);
+  const origin = location(pages.get('notebook'), span);
   assert.equal(origin.file, 'docs/src/content/docs/notebook.ipynb');
   assert.equal(origin.representation, 'myst');
   const { notebookToMyst } = await import('../../dist/source-loader.js');
@@ -108,7 +114,7 @@ test('includes retain their file identity and are excluded from the page collect
   const span = elements(pages.get('walkthrough')).find(node =>
     node.properties.dataSourceLocation && text(node) === 'included file');
   assert.ok(span);
-  const origin = JSON.parse(span.properties.dataSourceLocation);
+  const origin = location(pages.get('walkthrough'), span);
   assert.equal(origin.file, 'docs/src/content/docs/_partials/_provenance.md');
   assert.equal(origin.kind, 'exact');
   const source = await readFile(new URL(`../../${origin.file}`, import.meta.url), 'utf8');

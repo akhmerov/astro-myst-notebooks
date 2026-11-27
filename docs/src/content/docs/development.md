@@ -99,7 +99,7 @@ execution contracts, styles, browser files, and a runtime copy of the canonical
 autodoc workspace. It contains no dependency on a local workspace link.
 Documentation source and site output are excluded.
 
-This branch targets unpublished `0.5.0-alpha.0`. An archive from the previous
+This branch uses `0.5.0-alpha.0`. An archive from the previous
 `0.4.x` pipeline does not test the new API. Before sharing a build, validate the
 actual archive in fresh consumers and retain its checksum. Publication is a
 separate action; building or testing an archive does not publish a release.
@@ -171,7 +171,7 @@ consumer to resolve published Python names over HTTP. The isolated Sphinx
 dependencies live in the existing `interop` Pixi environment. See the
 [workspace README](https://github.com/akhmerov/astro-myst-notebooks/tree/main/packages/myst-autodoc)
 for standalone configuration. That public link follows `main`; use the local
-workspace README when testing this unpublished migration.
+workspace README when testing this migration.
 
 ## Migration acceptance
 
